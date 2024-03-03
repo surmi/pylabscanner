@@ -1,0 +1,22 @@
+
+# Packaging
+*.egg-info/
+
+# Virtual environment
+\venv
+
+# Byte-compiled
+__pycache__/
+
+# IDE specific
+.idea/*
+.vscode/*
+.vs/*
+
+# files specific for the project
+log.txt
+params.dat
+# Default measurement results direcotry
+/out
+# config file
+config.ini

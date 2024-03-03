@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools >= 65.5"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = 'pylabscanner'
+authors = [
+    {name = "Mateusz Surma"},
+]
+description = "CLI tool for scanning jobs in a laboratory with Thorlabs LTS stages"
+dependencies = [
+    "click",
+    "pyserial",
+    "thorlabs-apt-device",
+    "numpy",
+    "pandas"
+]
+readme = "README.md"
+license = {text = "GPL v3"}
+dynamic = ["version"]
+
+[project.scripts]
+labscanner = "pylabscanner:cli"
+
+[tool.setuptools.packages.find]
+exclude = ["test", "examples"]
+
+[tool.setuptools.dynamic]
+version = {attr = "pylabscanner.__version__"}
+
