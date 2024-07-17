@@ -20,6 +20,9 @@ Following repo uses [pipenv](https://pipenv.pypa.io/) and [setuptools](https://s
 - Live reading from the detector - useful for identification of the beam position etc.
 - Plotting command - selection of the specific data for plotting, plotting of the data from multiple files for easy comparison.
 
+# FAQ
+- I'm having problems with Thorlabs stages on Windows machine (stages are not present in the Windows Device Manager under the "Ports (COM & LPT)" section) - possible sollution is to enable [Virtual COM port](https://thorlabs-apt-device.readthedocs.io/en/latest/gettingstarted.html#windows-only-enable-virtual-com-port)
+
 # License
 All original work is licensed under the GNU General Public License v3.0. See the [license](LICENSE.txt) for details.
 
