@@ -11,6 +11,7 @@ numpy = "*"
 pandas = "*"
 matplotlib = "*"
 tqdm = "*"
+pylabscanner = {file = ".", editable = true}
 
 [dev-packages]
 
