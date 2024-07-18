@@ -41,6 +41,22 @@ class BoloMsgFreq(Enum):
         self.freq = freq # frequency in kHz
 
 
+class DeviceNotFoundError(Exception):
+    def __init__(self, device_name=None, msg=None, *args: object) -> None:
+        super().__init__(*args)
+        self.device_name = device_name
+        self.msg = msg
+    
+    def __str__(self):
+        if self.msg is None:
+            if self.device_name is None:
+                return("Device not found.")
+            else:
+                return(f"{self.device_name} not found.")
+        else:
+            return self.msg
+
+
 class Detector(ABC):
     """Abstract class for detectors."""
     @abstractmethod
@@ -162,7 +178,10 @@ class BoloLine(Detector):
     ) -> None:
         self._hid = f"{idVendor}:{idProduct}" # hardware id (vendor id : product id)
         restr = "(?i)" + self._hid 
-        self._port = next(list_ports.grep(restr)).name
+        try:
+            self._port = next(list_ports.grep(restr)).name
+        except StopIteration as e:
+            raise DeviceNotFoundError(msg="Bolometer line not found.")
         self._readDelay = 0.01 # selected experimentally (longer wait time may be necessary)
         self._dev = serial.Serial(
             port=self._port,

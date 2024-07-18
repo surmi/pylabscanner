@@ -11,7 +11,7 @@ import shutil
 import filecmp
 
 from .LTS import asoHomeDevs, asoMoveDevs, steps2mm
-from .devices import BoloLine
+from .devices import BoloLine, DeviceNotFoundError
 from .utils import initStages, convToSteps, parseRange, parseDet, parseFilepath, postprocessing, plotting, saving
 from .commands import LineStart, LineType, ScanRoutine
 
@@ -314,7 +314,12 @@ def scan(config:Config, x, y, z, outpath:Path, mode, noconfirmation, linestart,
     # initialize devices
     click.echo("Initializing devices...")
     stages = initStages(stageslist=stagesstr, stage_no=config.stage_sn)
-    bl = BoloLine(sensor=detsens, samples=detsamp, freq=detfreq, cold_start=True)
+    try:
+        bl = BoloLine(sensor=detsens, samples=detsamp, freq=detfreq, cold_start=True)
+    except DeviceNotFoundError as e:
+        click.echo("Bolometer line not detected. Please check connection!")
+        raise click.Abort
+
     click.echo("\tDevices initialized")
 
     # Build the scanning routine
