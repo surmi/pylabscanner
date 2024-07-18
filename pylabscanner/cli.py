@@ -117,7 +117,7 @@ def home(config:Config, stageslist):
 
     click.echo("Homing...")
     start = time()
-    asyncio.run(asoHomeDevs(stages), debug=True)
+    asyncio.run(asoHomeDevs(stages), debug=config.debug)
     te_home1 = time()
     click.echo(f"\tStages homed in: {te_home1-start:.2f}s")
 
@@ -159,7 +159,7 @@ def moveTo(config:Config, x, y, z):
     click.echo("Moving to designated position(s)...")
     start = time()
     try:
-        asyncio.run(asoMoveDevs(stages, pos), debug=True)
+        asyncio.run(asoMoveDevs(stages, pos), debug=config.debug)
     except BaseException as er:
         click.echo("Some error")
     te_home1 = time()
