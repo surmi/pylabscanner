@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 from typing import List, Tuple, Any, Dict
 import numpy.typing as npt
 from matplotlib.figure import Figure
+from serial import SerialException
 
 from .LTS import LTS, LTSC, error_callback
 from .LTS import mm2steps
@@ -25,22 +26,48 @@ def initStages(stageslist:str, stage_no:Dict[str, str]) -> List[LTS]:
     """
     stages = []
     if stageslist == 'ALL':
-        stage_z = LTS(serial_number=stage_no['z'], home=False)
-        stage_y = LTS(serial_number=stage_no['y'], home=False)
-        stage_x = LTSC(serial_number=stage_no['x'], home=False)
+            
+        try:
+            stage_z = LTS(serial_number=stage_no['z'], home=False)
+        except SerialException as e:
+            print("Exception on serial connection to z axis stage.")
+            raise e
+        try:
+            stage_y = LTS(serial_number=stage_no['y'], home=False)
+        except SerialException as e:
+            print("Exception on serial connection to y axis stage.")
+            raise e
+        try:
+            stage_x = LTSC(serial_number=stage_no['x'], home=False)
+        except SerialException as e:
+            print("Exception on serial connection to x axis stage.")
+            raise e
         stages.append(stage_x)
         stages.append(stage_y)
         stages.append(stage_z)
     else:
         if 'X' in stageslist or 'x' in stageslist:
-            stage_x = LTSC(serial_number=stage_no['x'], home=False)
+            try:
+                stage_x = LTSC(serial_number=stage_no['x'], home=False)
+            except SerialException as e:
+                print("Exception on serial connection to x axis stage.")
+                raise e
             stages.append(stage_x)
         if 'Y' in stageslist or 'y' in stageslist:
-            stage_y = LTS(serial_number=stage_no['y'], home=False)
+            try:
+                stage_y = LTS(serial_number=stage_no['y'], home=False)
+            except SerialException as e:
+                print("Exception on serial connection to y axis stage.")
+                raise e
             stages.append(stage_y)
         if 'Z' in stageslist or 'z' in stageslist:
-            stage_z = LTS(serial_number=stage_no['z'], home=False)
+            try:
+                stage_z = LTS(serial_number=stage_no['z'], home=False)
+            except SerialException as e:
+                print("Exception on serial connection to z axis stage.")
+                raise e
             stages.append(stage_z)
+
     sleep(1)
     for s in stages:
         s.register_error_callback(error_callback)
