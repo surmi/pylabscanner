@@ -24,7 +24,7 @@ class LTS(aptdevice_motor.APTDevice_Motor):
             controller=EndPoint.USB, bays=bays, channels=(1,)
         )
         # Wait for pooling (from `aptdevice.__init__()`) to initialize 
-        sleep(3)
+        sleep(0.5)
         
         self.req_info()
 
@@ -80,8 +80,9 @@ class LTS(aptdevice_motor.APTDevice_Motor):
         }
 
         # Enable the stage
-        self.set_enabled(True)
-        sleep(0.5) # wait for enable
+        if not self.status["channel_enabled"]:
+            self.set_enabled(True)
+            sleep(0.5) # wait for enable
         self.req_info()
         sleep(0.5)
 
