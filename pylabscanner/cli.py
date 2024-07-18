@@ -10,7 +10,7 @@ import configparser
 import shutil
 import filecmp
 
-from .LTS import asoHomeDevs, asoMoveDevs
+from .LTS import asoHomeDevs, asoMoveDevs, steps2mm
 from .devices import BoloLine
 from .utils import initStages, convToSteps, parseRange, parseDet, parseFilepath, postprocessing, plotting, saving
 from .commands import LineStart, LineType, ScanRoutine
@@ -410,6 +410,22 @@ def plot(
         raise NotImplementedError("Plotting multiple files not implemented yet")
         if postproc is None:
             raise click.UsageError("No processing mode selected")
+
+@cli.command()
+@pass_config
+def getPosition(config:Config):
+    """
+    Print out current position on each of the axes.
+
+    Assumes all three stages are connected.
+    """
+    click.echo("Initializing devices...")
+    stages = initStages(stageslist='ALL', stage_no=config.stage_sn)
+    click.echo("\tDevices initialized")
+
+    click.echo("Current positions:")
+    x,y,z = [steps2mm(s.status['position'],s.convunits['pos']) for s in stages]
+    click.echo(f'\tx: {x}mm\n\ty: {y}mm\n\tz: {z}mm')
 
 
 @cli.command()
