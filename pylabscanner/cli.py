@@ -228,7 +228,7 @@ def moveTo(config:Config, x, y, z):
 @click.option('-plts', 'plot_save', is_flag=True, default=True, 
               help='Whether to save the plot of the output data')
 @click.option('-post', 'postproc', default='raw',
-              type=click.Choice(['raw', 'mean', 'fft']),
+              type=click.Choice(['raw', 'mean', 'fft', 'fftmax']),
               help='Postprocessing of obtained measurements')
 @click.option('-f', 'chopfreq', type=float,
               help='Signal modulation frequency in Hz (if used)')
@@ -410,7 +410,7 @@ def scan(config:Config, x, y, z, outpath:Path, mode, noconfirmation, linestart,
     )
 )
 @click.option('-post', 'postproc', default=None,
-              type=click.Choice(['mean', 'fft']),
+              type=click.Choice(['mean', 'fft', 'fftmax']),
               help='Postprocessing of obtained measurements')
 @click.option('-save', 'plot_save', is_flag=True, default=False, 
               help='Whether to save the plot of the output data')

@@ -230,6 +230,32 @@ def postprocessing(data:pd.DataFrame, mode:str|List[str], sigfreq:float=None, fr
         data['MEAN'] = val
         return val
 
+    elif 'fftmax' in mode:
+        if freqsamp is None:
+            raise ValueError("Signal sample spacing required")
+
+        fft = workdata.map(lambda x: np.fft.rfft(x))
+
+        # find max value and its frequency
+        sample_spacing = 1/freqsamp
+        freqs = np.fft.rfftfreq(fft[0].size, sample_spacing)
+        
+        # get max value and find its index
+        threshold_freq = 100
+        print(freqs.shape)
+        print(fft[0].size)
+        valtmp = fft.map(lambda x: np.max(np.abs(x[freqs>threshold_freq])))
+        # indtmp = fft.map(lambda x: np.argmax(np.abs(x[freqs>threshold_freq])))
+        print(valtmp)
+        # print(indtmp)
+
+        # max_value_ind, max_value = _closest_val(fft, np.max(fft))
+        # TODO: check if normalization is correct (1/N)
+        # data['FFT_max'] = max_value
+        # data['FFT_max_freq'] = freqs[max_value_ind]
+        # return freqs[max_value_ind], max_value
+        return [1.0, 1.0]
+
     elif 'fft' in mode:
         if sigfreq is None:
             raise ValueError("Signal frequency required")
