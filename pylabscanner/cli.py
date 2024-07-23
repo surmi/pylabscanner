@@ -20,7 +20,7 @@ class Config(object):
     def __init__(self):
         # self.verbose = False
         self.debug = False
-        self.log = None
+        self.logger = None
         self.stage_sn = {}
 
 pass_config = click.make_pass_decorator(Config, ensure=True)
@@ -62,7 +62,7 @@ def cli(confobj:Config, debug, config:Path):
                         datefmt='%H:%M:%S',
                         level=logging.DEBUG)
 
-        confobj.log = logging.getLogger(__name__)
+        confobj.logger = logging.getLogger(__name__)
 
     config_path = Path(__file__).parent.parent / 'config.ini'
     if not config_path.exists() and config is None:
@@ -160,8 +160,11 @@ def moveTo(config:Config, x, y, z):
     start = time()
     try:
         asyncio.run(asoMoveDevs(stages, pos), debug=config.debug)
-    except BaseException as er:
-        click.echo("Some error")
+    except Exception as er:
+        config.logger.error("Error while running asynchronous movement to position")
+        config.logger.error(er)
+        click.echo("Error while running asynchronous movement to position. Run in debug mode to see more details.")
+        raise click.Abort
     te_home1 = time()
     click.echo(f"\tStages moved in: {te_home1-start:.2f}s")
 

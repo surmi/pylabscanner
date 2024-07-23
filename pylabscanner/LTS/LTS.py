@@ -6,7 +6,7 @@ from thorlabs_apt_device.enums import EndPoint
 from thorlabs_apt_device import protocol as apt
 from thorlabs_apt_device.protocol.functions import _pack
 
-from .utility import mm2steps
+from .utility import mm2steps, steps2mm
 
 
 class LTS(aptdevice_motor.APTDevice_Motor):
@@ -178,7 +178,7 @@ class LTS(aptdevice_motor.APTDevice_Motor):
             await asyncio.sleep(interval)        
 
 
-    async def aso_home(self, waitfinished=True):
+    async def aso_home(self, waitfinished=True) -> None:
         """Home a stage with built in waiting for the action to finish.
         Recomended to be used within `asyncio.wait_for` with timeout.
 
@@ -190,8 +190,9 @@ class LTS(aptdevice_motor.APTDevice_Motor):
         channel=0
 
         super().home(bay,channel)
-        self._loop.call_later(0.25, self.homed()) # note: different loop
-        sleep(0.5)
+        call_delay = 0.15
+        timerHandle = self._loop.call_later(call_delay, self.homed) # note: different loop
+        await asyncio.sleep(call_delay+0.1)
 
         interval = 0.1
         # Wait for the stage to start moving
@@ -321,7 +322,7 @@ class LTSC(LTS):
     def __str__(self):
         return f"LTSC ({self.serial_number})"
 
-    async def aso_home(self, waitfinished=True):
+    async def aso_home(self, waitfinished=True) -> None:
         """Asynchronous method for homing a stage with built in waiting for the action to finish.
         Recomended to be used within `asyncio.wait_for` with timeout.
 
@@ -333,7 +334,7 @@ class LTSC(LTS):
         channel=0
 
         super().home(bay,channel)
-        self._loop.call_later(0.25, self.homed()) # note: different loop
+        self._loop.call_later(0.25, self.homed) # note: different loop
         sleep(0.5)
 
         interval = 0.1
@@ -393,8 +394,8 @@ async def asoClose(devs):
     
     await asyncio.wait({*tasks}, return_when=asyncio.ALL_COMPLETED)
 
-    
-async def asoHomeDevs(devs:LTS|list[LTS], timeout:int|float=61, waitfinished:bool=True):
+
+async def asoHomeDevs(devs:LTS|list[LTS], timeout:int|float=61, waitfinished:bool=True) -> None:
     """Asynchronously begin `home` operation on all provided stages and wait for finish. All calls are done with timeout of 61 seconds.
 
     Args:
@@ -404,20 +405,18 @@ async def asoHomeDevs(devs:LTS|list[LTS], timeout:int|float=61, waitfinished:boo
     """
     if type(devs) is not list: devs = [devs]
 
-    tasks = []
-    for stage in devs:
-        tasks.append(
-            asyncio.create_task(
-                asyncio.wait_for(stage.aso_home(waitfinished), timeout)
-            )
-        )
-    try:
-        if tasks:
-            await asyncio.wait(tasks, return_when=asyncio.ALL_COMPLETED)
-    except TimeoutError as e:
-        devs[0]._log.warn(f"Timout during homing")
-    
-    sleep(0.5)
+    async with asyncio.TaskGroup() as tg:
+        try:
+            tasks = []
+            for stage in devs:
+                tasks.append(
+                    tg.create_task(
+                        asyncio.wait_for(stage.aso_home(waitfinished), timeout),
+                        name=f'Homing stage with s/n {stage.serial_number}',
+                    )
+                )
+        except TimeoutError as e:
+            devs[0]._log.warn(f"Timout during homing")
 
 
 async def asoMoveDevs(devs:LTS|list[LTS], pos:int|float|list[int]|list[float], timeout:int|float=61, waitfinished:bool=True): 
@@ -432,24 +431,21 @@ async def asoMoveDevs(devs:LTS|list[LTS], pos:int|float|list[int]|list[float], t
     """
     if type(devs) is not list: devs = [devs]
     
-    # if multiple devices but only one distane -> assume all go to the same pos
+    # if multiple devices but only one distance -> assume all go to the same pos
     if type(pos) is not list: pos = [pos]*len(devs)
 
-    tasks = []
-    for (d, p) in zip(devs, pos):
-        if p != d.status['position']:
-            tasks.append(
-            asyncio.create_task(
-                asyncio.wait_for(d.aso_move_absolute(p, waitfinished), timeout)
-            )
-        )
-        else:
-            d._log.debug("Stage already in position.")
-    
-    try:
-        if tasks:
-            await asyncio.wait([*tasks], return_when=asyncio.ALL_COMPLETED)
-    except TimeoutError as e:
-        devs[0]._log.warn("Timeout during moving")
-
-    sleep(0.5)
+    async with asyncio.TaskGroup() as tg:
+        try:
+            tasks = []
+            for (stage, position_to_go) in zip(devs, pos):
+                if position_to_go != stage.status['position']:
+                    tasks.append(
+                        tg.create_task(
+                            asyncio.wait_for(stage.aso_move_absolute(position_to_go, waitfinished), timeout=timeout),
+                            name=f"Moving stage {stage.serial_number} to position {steps2mm(position_to_go, stage.convunits["pos"])}"
+                        )
+                    )
+                else:
+                    stage._log.debug("Stage already in position.")
+        except TimeoutError as e:
+            devs[0]._log.warn("Timeout during moving")
