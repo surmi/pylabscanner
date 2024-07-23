@@ -24,7 +24,7 @@ class LTS(aptdevice_motor.APTDevice_Motor):
             controller=EndPoint.USB, bays=bays, channels=(1,)
         )
         # Wait for pooling (from `aptdevice.__init__()`) to initialize 
-        sleep(0.5)
+        sleep(0.2)
         
         self.req_info()
 
@@ -82,9 +82,9 @@ class LTS(aptdevice_motor.APTDevice_Motor):
         # Enable the stage
         if not self.status["channel_enabled"]:
             self.set_enabled(True)
-            sleep(0.5) # wait for enable
+            sleep(0.3) # wait for enable
         self.req_info()
-        sleep(0.5)
+        sleep(0.2)
 
         # Initialize with default parameters (based on values in Kinesis 1.14.37)
         if initDefault:
@@ -119,24 +119,24 @@ class LTS(aptdevice_motor.APTDevice_Motor):
                 mm2steps(20.0, self.convunits["acc"]),
                 mm2steps(20.0, self.convunits["vel"])
             )
-            sleep(0.5)
+            sleep(0.2)
 
         # Home the device
         if home:
             self._loop.call_later(0.15, self.home, bay_i, channel_i)
             sleep(0.2)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"LTS ({self.serial_number})"
 
 
-    def _process_message(self, m):
+    def _process_message(self, m) -> None:
         super()._process_message(m)
         if m.msg == "mot_move_completed":
             self.status['move_completed'] = True
 
 
-    def req_info(self):
+    def req_info(self) -> None:
         """Schedule `hw_req_info`.
         """
         source=EndPoint.HOST
@@ -146,7 +146,7 @@ class LTS(aptdevice_motor.APTDevice_Motor):
         self._loop.call_soon_threadsafe(self._write, apt.hw_req_info(source=source, dest=dest))
 
 
-    async def asoclosewait(self, wait=1):
+    async def aso_close_wait(self, wait=1) -> None:
         """Schedule `close()` method on the device.
 
         Args:
@@ -156,7 +156,7 @@ class LTS(aptdevice_motor.APTDevice_Motor):
         await asyncio.sleep(wait)
 
 
-    async def aso_wait_for_homed(self, interval=0.1):
+    async def aso_wait_for_homed(self, interval=0.1) -> None:
         """Wait for the stage to be homed.
         Recomended to be used within `asyncio.wait_for` to add timeout.
 
@@ -167,7 +167,7 @@ class LTS(aptdevice_motor.APTDevice_Motor):
             await asyncio.sleep(interval)
 
 
-    async def aso_wait_for_move_completed(self, interval=0.1):
+    async def aso_wait_for_move_completed(self, interval=0.1) -> None:
         """Wait for the motion to finish.
         Recomended to be used within `asyncio.wait_for` to add timeout.
 
@@ -211,7 +211,7 @@ class LTS(aptdevice_motor.APTDevice_Motor):
                     await asyncio.sleep(interval)
 
 
-    async def aso_move_absolute(self, position: int|float, waitfinished: bool=True):
+    async def aso_move_absolute(self, position: int|float, waitfinished: bool=True) -> None:
         """Move a stage (absolute move command) with built in waiting for the action to finish.
         Recomended to be used within `asyncio.wait_for` with timeout.
 
@@ -248,7 +248,7 @@ class LTS(aptdevice_motor.APTDevice_Motor):
         #     await asyncio.sleep(interval)
 
 
-    def sync_home(self):
+    def sync_home(self) -> None:
         """Homes the stage without waiting for the action to finish.
         """
         # Default for LTS
@@ -266,7 +266,7 @@ class LTS(aptdevice_motor.APTDevice_Motor):
             sleep(interval)
 
 
-    def homed(self):
+    def homed(self) -> None:
         """
         Require stage to respond with "homed" message after finishing homing.
         """
@@ -278,7 +278,7 @@ class LTS(aptdevice_motor.APTDevice_Motor):
         self._loop.call_soon_threadsafe(self._write, mot_move_homed(source=EndPoint.HOST, dest=self.bays[bay], chan_ident=self.channels[channel]))
 
 
-    def move_absolute(self, position: int|float):
+    def move_absolute(self, position: int|float) -> None:
         """Synchronous method for moving a stage (absolute move command) without waiting for the action to finish.
         
         Args:
@@ -319,7 +319,7 @@ class LTSC(LTS):
         )
         # Currently LTSxC (replacement for older LTSx) reports at `EndPoint.BAY0` (LTSx reported on `EndPoint.USB`).
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"LTSC ({self.serial_number})"
 
     async def aso_home(self, waitfinished=True) -> None:
@@ -383,7 +383,7 @@ def mot_req_statusbits(dest: int, source: int, chan_ident: int) -> bytes:
     return _pack(0x0429, dest, source, param1=chan_ident)
 
 
-async def asoClose(devs):
+async def aso_close(devs: LTS|list[LTS]) -> None:
     if type(devs) is not list: devs = [devs]
 
     tasks = []
@@ -395,7 +395,7 @@ async def asoClose(devs):
     await asyncio.wait({*tasks}, return_when=asyncio.ALL_COMPLETED)
 
 
-async def asoHomeDevs(devs:LTS|list[LTS], timeout:int|float=61, waitfinished:bool=True) -> None:
+async def aso_home_devs(devs:LTS|list[LTS], timeout:int|float=61, waitfinished:bool=True) -> None:
     """Asynchronously begin `home` operation on all provided stages and wait for finish. All calls are done with timeout of 61 seconds.
 
     Args:
@@ -419,7 +419,7 @@ async def asoHomeDevs(devs:LTS|list[LTS], timeout:int|float=61, waitfinished:boo
             devs[0]._log.warn(f"Timout during homing")
 
 
-async def asoMoveDevs(devs:LTS|list[LTS], pos:int|float|list[int]|list[float], timeout:int|float=61, waitfinished:bool=True): 
+async def aso_move_devs(devs:LTS|list[LTS], pos:int|float|list[int]|list[float], timeout:int|float=61, waitfinished:bool=True) -> None: 
     """Asynchronously begin `absolute move` operation on all provided stages and wait for finish. All calls are done with timeout of 61 seconds.
     Recommended for moving into specific position (not for scanning while moving).
 

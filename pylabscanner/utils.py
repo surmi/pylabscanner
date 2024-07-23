@@ -8,13 +8,14 @@ from typing import List, Tuple, Any, Dict
 import numpy.typing as npt
 from matplotlib.figure import Figure
 from serial import SerialException
+import logging
 
 from .LTS import LTS, LTSC, error_callback
 from .LTS import mm2steps
 from .devices import BoloMsgFreq, BoloMsgSamples, BoloMsgSensor
 
 
-def initStages(stageslist:str, stage_no:Dict[str, str]) -> List[LTS]:
+def init_stages(stageslist:str, stage_no:Dict[str, str]) -> List[LTS]:
     """Initialize LTS and LTSC stages.
 
     Args:
@@ -25,22 +26,34 @@ def initStages(stageslist:str, stage_no:Dict[str, str]) -> List[LTS]:
         List[LTS]: list of initialized objects
     """
     stages = []
+    logger = logging.getLogger(__name__)
     if stageslist == 'ALL':
             
         try:
             stage_z = LTS(serial_number=stage_no['z'], home=False)
         except SerialException as e:
-            print("Exception on serial connection to z axis stage.")
+            logger.error("Exception on serial connection to z axis stage.")
             raise e
+        except RuntimeError as e:
+            logger.error("Exception on initialization of z axis stage.")
+            raise e
+
         try:
             stage_y = LTS(serial_number=stage_no['y'], home=False)
         except SerialException as e:
-            print("Exception on serial connection to y axis stage.")
+            logger.error("Exception on serial connection to y axis stage.")
             raise e
+        except RuntimeError as e:
+            logger.error("Exception on initialization of y axis stage.")
+            raise e
+
         try:
             stage_x = LTSC(serial_number=stage_no['x'], home=False)
         except SerialException as e:
-            print("Exception on serial connection to x axis stage.")
+            logger.error("Exception on serial connection to x axis stage.")
+            raise e
+        except RuntimeError as e:
+            logger.error("Exception on initialization of x axis stage.")
             raise e
         stages.append(stage_x)
         stages.append(stage_y)
@@ -50,21 +63,30 @@ def initStages(stageslist:str, stage_no:Dict[str, str]) -> List[LTS]:
             try:
                 stage_x = LTSC(serial_number=stage_no['x'], home=False)
             except SerialException as e:
-                print("Exception on serial connection to x axis stage.")
+                logger.error("Exception on serial connection to x axis stage.")
+                raise e
+            except RuntimeError as e:
+                logger.error("Exception on initialization of x axis stage.")
                 raise e
             stages.append(stage_x)
         if 'Y' in stageslist or 'y' in stageslist:
             try:
                 stage_y = LTS(serial_number=stage_no['y'], home=False)
             except SerialException as e:
-                print("Exception on serial connection to y axis stage.")
+                logger.error("Exception on serial connection to y axis stage.")
+                raise e
+            except RuntimeError as e:
+                logger.error("Exception on initialization of y axis stage.")
                 raise e
             stages.append(stage_y)
         if 'Z' in stageslist or 'z' in stageslist:
             try:
                 stage_z = LTS(serial_number=stage_no['z'], home=False)
             except SerialException as e:
-                print("Exception on serial connection to z axis stage.")
+                logger.error("Exception on initialization of z axis stage.")
+                raise e
+            except RuntimeError as e:
+                logger.error("Exception on initialization of z axis stage.")
                 raise e
             stages.append(stage_z)
 
@@ -74,7 +96,7 @@ def initStages(stageslist:str, stage_no:Dict[str, str]) -> List[LTS]:
     return stages
 
 
-def convToSteps(stages:LTS|list[LTS], pos:int|float|list[int]|list[float]) -> int|List[int]:
+def conv_to_steps(stages:LTS|list[LTS], pos:int|float|list[int]|list[float]) -> int|List[int]:
     """Convert required position to microsteps (used by LTS devices).
 
     Args:
@@ -92,7 +114,7 @@ def convToSteps(stages:LTS|list[LTS], pos:int|float|list[int]|list[float]) -> in
     else: return retPos
 
 
-def parseRange(range:str) -> npt.NDArray:
+def parse_range(range:str) -> npt.NDArray:
     """Parse range option. Accepts single float or 3 floats separated with ':'.
 
     Args:
@@ -115,7 +137,7 @@ def parseRange(range:str) -> npt.NDArray:
         raise ValueError("Wrong number of elements in the range string. Provide 1 or 3 numbers")
 
 
-def parseDet(detsens:int, detsamp:int, detfreq:int) -> tuple[BoloMsgSamples, BoloMsgSamples, BoloMsgFreq]:
+def parse_detector_settings(detsens:int, detsamp:int, detfreq:int) -> tuple[BoloMsgSamples, BoloMsgSamples, BoloMsgFreq]:
     """Parse detector settings.
 
     Args:
@@ -139,7 +161,7 @@ def parseDet(detsens:int, detsamp:int, detfreq:int) -> tuple[BoloMsgSamples, Bol
     return (detsens, detsamp, detfreq)
 
 
-def parseFilepath(filepath:Path, timestamp:bool=True, extension:None|str=None) -> Tuple[Path, str]:
+def parse_filepath(filepath:Path, timestamp:bool=True, extension:None|str=None) -> Tuple[Path, str]:
     """Parse file path, timestamp, and extension options.
 
     Args:

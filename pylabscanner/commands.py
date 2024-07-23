@@ -13,7 +13,7 @@ from numpy import sqrt
 from time import time
 from tqdm import tqdm
 
-from .LTS import LTS, LTSC, steps2mm, mm2steps, asoMoveDevs, asoHomeDevs
+from .LTS import LTS, LTSC, steps2mm, mm2steps, aso_move_devs, aso_home_devs
 from .devices import Detector, Source, BoloMsgFreq, BoloMsgSamples, BoloMsgSensor
 
 
@@ -63,7 +63,7 @@ class ActionMoveTo(Action):
         return f"Move stage(s) {stage_str} to position(s) {pos_str}"
     
     def run(self):
-        asyncio.run(asoMoveDevs(self.stages, pos=self.step_pos))
+        asyncio.run(aso_move_devs(self.stages, pos=self.step_pos))
 
 class ActionHome(Action):
     """Home stage(s)."""
@@ -75,7 +75,7 @@ class ActionHome(Action):
         return f"Home stage(s) {stage_str}"
     
     def run(self):
-        asyncio.run(asoHomeDevs(self.stages))
+        asyncio.run(aso_home_devs(self.stages))
 
 class ActionFlyBy(Action):
     """Single line fly-by scan on a stage."""
@@ -126,7 +126,7 @@ class ActionFlyBy(Action):
 
     def run(self):
         # start movement without waiting
-        asyncio.run(asoMoveDevs(self.stage, pos=self.final_pos, waitfinished=False))
+        asyncio.run(aso_move_devs(self.stage, pos=self.final_pos, waitfinished=False))
         # start measurement
         measurement = self.detector.measure_series(
             len(self.measrng), interval=self.dt, start_delay=self.t_ru
@@ -184,13 +184,13 @@ class ActionPtByPt(Action):
         if self.reverse:
             for i in reversed(self.measrng):
                 pos = mm2steps(i, self.stage.convunits["pos"])
-                asyncio.run(asoMoveDevs(self.stage, pos=pos, waitfinished=True))
+                asyncio.run(aso_move_devs(self.stage, pos=pos, waitfinished=True))
                 meas_val.append(self.detector.measure())
                 meas_pos.append(i)
         else:
             for i in self.measrng:
                 pos = mm2steps(i, self.stage.convunits["pos"])
-                asyncio.run(asoMoveDevs(self.stage, pos=pos, waitfinished=True))
+                asyncio.run(aso_move_devs(self.stage, pos=pos, waitfinished=True))
                 meas_val.append(self.detector.measure())
                 meas_pos.append(i)
         

@@ -9,10 +9,11 @@ import pandas as pd
 import configparser
 import shutil
 import filecmp
+from serial import SerialException
 
-from .LTS import asoHomeDevs, asoMoveDevs, steps2mm
+from .LTS import aso_home_devs, aso_move_devs, steps2mm
 from .devices import BoloLine, DeviceNotFoundError
-from .utils import initStages, convToSteps, parseRange, parseDet, parseFilepath, postprocessing, plotting, saving
+from .utils import init_stages, conv_to_steps, parse_range, parse_detector_settings, parse_filepath, postprocessing, plotting, saving
 from .commands import LineStart, LineType, ScanRoutine
 
 
@@ -112,12 +113,24 @@ def home(config:Config, stageslist):
     Available options: 'X', 'Y', 'Z', 'ALL'. Defaults to 'ALL'.
     """
     click.echo("Initializing devices...")
-    stages = initStages(stageslist=stageslist, stage_no=config.stage_sn)
+    try:
+        stages = init_stages(stageslist=stageslist, stage_no=config.stage_sn)
+    except SerialException as e:
+        config.logger.error("Serial connection error on stage initialization before homing operation.")
+        config.logger.error(e)
+        click.echo("Serial connection error. Run the app with --debug command to see details in the log file.")
+        raise click.Abort
+    except RuntimeError as e:
+        config.logger.error("Runetime error on stage initialization before homing operation.")
+        config.logger.error(e)
+        click.echo("Runetime error on stage initialization. Verify that stages are connected and powered on.\nRun the app with --debug command to see details in the log file.")
+        raise click.Abort
+
     click.echo("\tDevices initialized")
 
     click.echo("Homing...")
     start = time()
-    asyncio.run(asoHomeDevs(stages), debug=config.debug)
+    asyncio.run(aso_home_devs(stages), debug=config.debug)
     te_home1 = time()
     click.echo(f"\tStages homed in: {te_home1-start:.2f}s")
 
@@ -152,14 +165,25 @@ def moveTo(config:Config, x, y, z):
         raise click.UsageError("Provide distance for at least one axis.")
 
     click.echo("Initializing devices...")
-    stages = initStages(stageslist=stagesstr, stage_no=config.stage_sn)
-    pos = convToSteps(stages, pos)
+    try:
+        stages = init_stages(stageslist=stagesstr, stage_no=config.stage_sn)
+    except SerialException as e:
+        config.logger.error("Serial connection error on stage initialization before homing operation.")
+        config.logger.error(e)
+        click.echo("Serial connection error. Run the app with --debug command to see details in the log file.")
+        raise click.Abort
+    except RuntimeError as e:
+        config.logger.error("Runetime error on stage initialization before homing operation.")
+        config.logger.error(e)
+        click.echo("Runetime error on stage initialization. Verify that stages are connected and powered on.\nRun the app with --debug command to see details in the log file.")
+        raise click.Abort
+    pos = conv_to_steps(stages, pos)
     click.echo("\tDevices initialized")
 
     click.echo("Moving to designated position(s)...")
     start = time()
     try:
-        asyncio.run(asoMoveDevs(stages, pos), debug=config.debug)
+        asyncio.run(aso_move_devs(stages, pos), debug=config.debug)
     except Exception as er:
         config.logger.error("Error while running asynchronous movement to position")
         config.logger.error(er)
@@ -279,9 +303,9 @@ def scan(config:Config, x, y, z, outpath:Path, mode, noconfirmation, linestart,
     # TODO: add data from postprocessing to separate file
     # parse input
     try:
-        measrngx = parseRange(x)
-        measrngy = parseRange(y)
-        measrngz = parseRange(z)
+        measrngx = parse_range(x)
+        measrngy = parse_range(y)
+        measrngz = parse_range(z)
     except ValueError as e:
         raise click.UsageError(e)
     if measrngx is None or measrngy is None or measrngz is None:
@@ -309,14 +333,25 @@ def scan(config:Config, x, y, z, outpath:Path, mode, noconfirmation, linestart,
         linestart = LineStart.SNAKE
     elif linestart == 'cr':
         linestart = LineStart.CR
-    detsens, detsamp, detfreq = parseDet(detsens=detsens, detsamp=detsamp, detfreq=detfreq)
-    outpath, extension = parseFilepath(filepath=outpath, timestamp=timestamp, extension=extension)
+    detsens, detsamp, detfreq = parse_detector_settings(detsens=detsens, detsamp=detsamp, detfreq=detfreq)
+    outpath, extension = parse_filepath(filepath=outpath, timestamp=timestamp, extension=extension)
     if postproc == 'raw' and plot:
         raise click.UsageError("Can't plot raw data")
 
     # initialize devices
     click.echo("Initializing devices...")
-    stages = initStages(stageslist=stagesstr, stage_no=config.stage_sn)
+    try:
+        stages = init_stages(stageslist=stagesstr, stage_no=config.stage_sn)
+    except SerialException as e:
+        config.logger.error("Serial connection error on stage initialization before homing operation.")
+        config.logger.error(e)
+        click.echo("Serial connection error. Run the app with --debug command to see details in the log file.")
+        raise click.Abort
+    except RuntimeError as e:
+        config.logger.error("Runetime error on stage initialization before homing operation.")
+        config.logger.error(e)
+        click.echo("Runetime error on stage initialization. Verify that stages are connected and powered on.\nRun the app with --debug command to see details in the log file.")
+        raise click.Abort
     try:
         bl = BoloLine(sensor=detsens, samples=detsamp, freq=detfreq, cold_start=True)
     except DeviceNotFoundError as e:
@@ -428,7 +463,18 @@ def getPosition(config:Config):
     Assumes all three stages are connected.
     """
     click.echo("Initializing devices...")
-    stages = initStages(stageslist='ALL', stage_no=config.stage_sn)
+    try:
+        stages = init_stages(stageslist='ALL', stage_no=config.stage_sn)
+    except SerialException as e:
+        config.logger.error("Serial connection error on stage initialization before homing operation.")
+        config.logger.error(e)
+        click.echo("Serial connection error. Run the app with --debug command to see details in the log file.")
+        raise click.Abort
+    except RuntimeError as e:
+        config.logger.error("Runetime error on stage initialization before homing operation.")
+        config.logger.error(e)
+        click.echo("Runetime error on stage initialization. Verify that stages are connected and powered on.\nRun the app with --debug command to see details in the log file.")
+        raise click.Abort
     click.echo("\tDevices initialized")
 
     click.echo("Current positions:")
