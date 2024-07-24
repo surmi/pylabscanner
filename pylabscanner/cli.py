@@ -1,5 +1,6 @@
 from typing import List, Tuple
 import click
+from click.core import ParameterSource
 import asyncio
 from time import time, sleep
 import logging
@@ -13,7 +14,7 @@ from serial import SerialException
 
 from .LTS import aso_home_devs, aso_move_devs, steps2mm
 from .devices import BoloLine, DeviceNotFoundError
-from .utils import init_stages, conv_to_steps, parse_range, parse_detector_settings, parse_filepath, postprocessing, plotting, saving
+from .utils import init_stages, conv_to_steps, parse_range, parse_detector_settings, parse_filepath, postprocessing, plotting, saving, _parse_detector_frequency
 from .commands import LineStart, LineType, ScanRoutine
 
 
@@ -53,17 +54,20 @@ def cli(confobj:Config, debug, config:Path):
     - THORLABS LTS300 and LTS300/C stages (possible use of 3 stages at the same time).
     - LUVITERA THZ MINI 4x1 line of wideband bolometers.
     """
+    # logging
+    logging.basicConfig(filename="log.txt",
+                    # filemode='a',
+                    filemode='w',
+                    format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
+                    datefmt='%H:%M:%S',
+                    level=logging.DEBUG)
+    confobj.logger = logging.getLogger(__name__)
     if debug:
         click.echo("Debug mode is on")
         confobj.debug = debug
-        logging.basicConfig(filename="log.txt",
-                        # filemode='a',
-                        filemode='w',
-                        format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
-                        datefmt='%H:%M:%S',
-                        level=logging.DEBUG)
+    else:
+        confobj.logger.setLevel(logging.ERROR)
 
-        confobj.logger = logging.getLogger(__name__)
 
     config_path = Path(__file__).parent.parent / 'config.ini'
     if not config_path.exists() and config is None:
@@ -212,11 +216,11 @@ def moveTo(config:Config, x, y, z):
               default='ptbypt', help="Scanning mode")
 @click.option('-s', 'linestart', type=click.Choice(['snake', 'cr']),
               default='snake', help="Where should each line start")
-@click.option('-dn', 'detsens', type=click.Choice(['1','2','3','4']),
+@click.option('-dn', 'det_sens', type=click.Choice(['1','2','3','4']),
               help='Detector sensor', default='1')
-@click.option('-ds', 'detsamp', type=click.Choice(['100','200','500','1000','2000','5000']),
+@click.option('-ds', 'det_samp', type=click.Choice(['100','200','500','1000','2000','5000']),
               help='Detector number of samples', default='100')
-@click.option('-df', 'detfreq', type=click.Choice(['1','2','5','10','20','40']),
+@click.option('-df', 'det_freq', type=click.Choice(['1','2','5','10','20','40']),
               help='Detector sampling frequency (in kHz)', default='1')
 @click.option('-nc', 'noconfirmation', is_flag=True, help="Run the scan without further confirmation")
 @click.option('-ts', 'timestamp', is_flag=True,
@@ -225,17 +229,17 @@ def moveTo(config:Config, x, y, z):
               help='Enforce specific extension')
 @click.option('-plt', 'plot', is_flag=True, default=False,
               help='Whether to plot the output data')
-@click.option('-plts', 'plot_save', is_flag=True, default=True, 
+@click.option('-plts', 'plot_save', is_flag=True, default=False, 
               help='Whether to save the plot of the output data')
 @click.option('-post', 'postproc', default='raw',
               type=click.Choice(['raw', 'mean', 'fft', 'fftmax']),
               help='Postprocessing of obtained measurements')
-@click.option('-f', 'chopfreq', type=float,
+@click.option('-f', 'chop_freq', type=float,
               help='Signal modulation frequency in Hz (if used)')
 @pass_config
 def scan(config:Config, x, y, z, outpath:Path, mode, noconfirmation, linestart,
-         detsens, detsamp, detfreq, timestamp, extension, plot, plot_save,
-         postproc, chopfreq):
+         det_sens, det_samp, det_freq, timestamp, extension, plot, plot_save,
+         postproc, chop_freq):
     """
     Performs scanning operation.
 
@@ -281,7 +285,7 @@ def scan(config:Config, x, y, z, outpath:Path, mode, noconfirmation, linestart,
 
     Since after postprocessing each point has single numerical value,
     the program can provide a simple plot (flag '-plt'). With '-plt' flag
-    program will generate and display the plot. If '-plts' is provided as well
+    program will generate and display the plot. If '-plts' is provided
     the plot will not be displayed but saved to file. If the scan contains
     only single line the plot will contain line plot but for more scan lines
     the plot will display heatmap.
@@ -301,6 +305,9 @@ def scan(config:Config, x, y, z, outpath:Path, mode, noconfirmation, linestart,
     # TODO: add other methods for saving data
     # TODO: implement different file format per extension
     # TODO: add data from postprocessing to separate file
+    # TODO: identify modulation (chopper) frequency limit
+    # TODO: move scan parsing to separate function (return settings dictionary?)
+    # TODO: differentiate plot and plot_save behaviour
     # parse input
     try:
         measrngx = parse_range(x)
@@ -333,7 +340,7 @@ def scan(config:Config, x, y, z, outpath:Path, mode, noconfirmation, linestart,
         linestart = LineStart.SNAKE
     elif linestart == 'cr':
         linestart = LineStart.CR
-    detsens, detsamp, detfreq = parse_detector_settings(detsens=detsens, detsamp=detsamp, detfreq=detfreq)
+    det_sens, det_samp, det_freq = parse_detector_settings(detsens=det_sens, detsamp=det_samp, detfreq=det_freq)
     outpath, extension = parse_filepath(filepath=outpath, timestamp=timestamp, extension=extension)
     if postproc == 'raw' and plot:
         raise click.UsageError("Can't plot raw data")
@@ -353,7 +360,7 @@ def scan(config:Config, x, y, z, outpath:Path, mode, noconfirmation, linestart,
         click.echo("Runetime error on stage initialization. Verify that stages are connected and powered on.\nRun the app with --debug command to see details in the log file.")
         raise click.Abort
     try:
-        bl = BoloLine(sensor=detsens, samples=detsamp, freq=detfreq, cold_start=True)
+        bl = BoloLine(sensor=det_sens, samples=det_samp, freq=det_freq, cold_start=True)
     except DeviceNotFoundError as e:
         click.echo("Bolometer line not detected. Please check connection!")
         raise click.Abort
@@ -391,14 +398,14 @@ def scan(config:Config, x, y, z, outpath:Path, mode, noconfirmation, linestart,
         if postproc != 'raw':
             # do the postprocessing
             click.echo(f"Postprocessing - mode {postproc}")
-            postprocessing(data, postproc, chopfreq, detfreq.freq*1000)
+            postprocessing(data, postproc, chop_freq, det_freq.freq*1000)
             click.echo("\tPostprocessing finished")
 
             # save processed data to file
             saving(data, outpath, label="postproc")
 
         if plot or plot_save:
-            plotting(data, path=outpath, save=plot_save)
+            plotting(data, path=outpath, save=plot_save, show=plot)
     else: click.echo("Measurement aborted")
 
 
@@ -414,12 +421,18 @@ def scan(config:Config, x, y, z, outpath:Path, mode, noconfirmation, linestart,
               help='Postprocessing of obtained measurements')
 @click.option('-save', 'plot_save', is_flag=True, default=False, 
               help='Whether to save the plot of the output data')
+@click.option('-df', 'det_freq', type=click.Choice(['1','2','5','10','20','40']),
+              help='Detector sampling frequency (in kHz)', default='1')
+@click.option('-f', 'chop_freq', type=float,
+              help='Signal modulation frequency in Hz (if used)')
 @pass_config
 def plot(
     config:Config,
     files:Tuple[Path, ...],
     postproc:None|str,
-    plot_save:bool
+    plot_save:bool,
+    det_freq:click.Choice,
+    chop_freq:float|None
 ):
     """
     Plots data from selected FILES.
@@ -433,22 +446,78 @@ def plot(
     If '-save' option is used and file with corresponding name already exists, it will
     be replaced. When '-save' option is used plot is not displayed.
 
+    The program will attempt to obtain metadata about the measurement from the file.
+    If user will provide necessary parameters as one of the options those will be used.
+    If necessary parameter will not be present as an option or in the metadata user will
+    be prompted for additional information.
+
     This command is not fully implemented yet.
     """
+    current_context = click.get_current_context()
     for f in files:
         if not f.exists():
             raise click.BadArgumentUsage(f'File in {f} path does not exist')
 
     if len(files) == 1:
+        #TODO: metadata detection
+        metadata = {}
+
         data = pd.read_csv(files[0], index_col=0)
+        outpath, extension = parse_filepath(filepath=files[0], timestamp=None, extension=".png")
+
         if postproc is None:
             # plot all processed data
-            plotting(data=data, path=files[0], save=plot_save)
-            pass
+            try:
+                print(config.debug)
+                plotting(data=data, path=files[0], save=plot_save)
+            except ValueError as e:
+                config.logger.error("Requested plotting but no postprocessed data detected.")
+                config.logger.error(e)
+                click.echo("No postprocessed data read from file. Make sure you selected right file or first perform postprocessing on the data (-post option).")
+                raise click.Abort
         else:
-            # TODO: plot specific data
-            raise NotImplementedError("Plotting specific data from file not implemented yet")
-        pass
+            # check postprocessing parameter availability
+            det_freq_source = current_context.get_parameter_source("det_freq")
+            if postproc == 'fft':
+                if det_freq_source == ParameterSource.DEFAULT:
+                    if "det_freq" in metadata:
+                        # default value -> use metadata
+                        det_freq = metadata['det_freq']
+                    else:
+                        # prompt user
+                        det_freq = click.prompt("What was the detector's frequency "
+                            "in this measurement (in kHz)? (available options: "
+                            "1, 2, 5, 10, 20, 40)",
+                            type=click.Choice(['1','2','5','10','20','40']))
+                det_freq = _parse_detector_frequency(detfreq=det_freq)
+
+                if chop_freq is None:
+                    if "chop_freq" in metadata:
+                        # default value -> use metadata
+                        chop_freq = metadata['chop_freq']
+                    else:
+                        # prompt user
+                        chop_freq = click.prompt("What was the chopper frequency "
+                            "in this measurement (in Hz)?",
+                            type=float)
+            elif postproc == 'fftmax':
+                if det_freq_source == ParameterSource.DEFAULT:
+                    if "det_freq" in metadata:
+                        # default value -> use metadata
+                        det_freq = metadata['det_freq']
+                    else:
+                        # prompt user
+                        det_freq = click.prompt("What was the detector's frequency "
+                            "in this measurement (in kHz)? (available options: "
+                            "1, 2, 5, 10, 20, 40)",
+                            type=click.Choice(['1','2','5','10','20','40']))
+                det_freq = _parse_detector_frequency(detfreq=det_freq)
+
+            click.echo(f"Postprocessing - mode {postproc}")
+            postprocessing(data, postproc, chop_freq, det_freq.freq*1000)
+            click.echo("\tPostprocessing finished")
+            
+            plot_result = plotting(data=data, path=outpath, save=plot_save, show=False)
     elif len(files) > 1:
         raise NotImplementedError("Plotting multiple files not implemented yet")
         if postproc is None:

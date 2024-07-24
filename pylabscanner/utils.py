@@ -137,7 +137,7 @@ def parse_range(range:str) -> npt.NDArray:
         raise ValueError("Wrong number of elements in the range string. Provide 1 or 3 numbers")
 
 
-def parse_detector_settings(detsens:int, detsamp:int, detfreq:int) -> tuple[BoloMsgSamples, BoloMsgSamples, BoloMsgFreq]:
+def parse_detector_settings(detsens:str, detsamp:str, detfreq:str) -> tuple[BoloMsgSamples, BoloMsgSamples, BoloMsgFreq]:
     """Parse detector settings.
 
     Args:
@@ -148,9 +148,10 @@ def parse_detector_settings(detsens:int, detsamp:int, detfreq:int) -> tuple[Bolo
     Returns:
         tuple[BoloMsgSamples, BoloMsgSamples, BoloMsgFreq]: enum objects corresponding to the detector settings
     """
-    for el in BoloMsgFreq:
-        if str(el.value[1]) == detfreq:
-            detfreq = el
+    # for el in BoloMsgFreq:
+    #     if str(el.value[1]) == detfreq:
+    #         detfreq = el
+    detfreq = _parse_detector_frequency(detfreq=detfreq)
     for el in BoloMsgSamples:
         if str(el.value[1]) == detsamp:
             detsamp = el
@@ -159,6 +160,12 @@ def parse_detector_settings(detsens:int, detsamp:int, detfreq:int) -> tuple[Bolo
     elif detsens == '3': detsens=BoloMsgSensor.THIRD
     elif detsens == '4': detsens=BoloMsgSensor.FOURTH
     return (detsens, detsamp, detfreq)
+
+
+def _parse_detector_frequency(detfreq:str) -> BoloMsgFreq:
+    for el in BoloMsgFreq:
+        if str(el.value[1]) == detfreq:
+            return el
 
 
 def parse_filepath(filepath:Path, timestamp:bool=True, extension:None|str=None) -> Tuple[Path, str]:
@@ -179,7 +186,7 @@ def parse_filepath(filepath:Path, timestamp:bool=True, extension:None|str=None) 
     if extension is not None:
         if not extension.startswith('.'):
             extension = '.'+extension
-        stem = stem + suffix
+        # stem = stem + suffix
         suffix = extension
     elif suffix == '':
         suffix = '.txt'
@@ -239,6 +246,8 @@ def postprocessing(data:pd.DataFrame, mode:str|List[str], sigfreq:float=None, fr
         # find max value and its frequency
         sample_spacing = 1/freqsamp
         freqs = np.fft.rfftfreq(fft[0].size, sample_spacing)
+        print(fft[0])
+        print(freqs)
         
         # get max value and find its index
         threshold_freq = 100
@@ -323,18 +332,20 @@ def _predict_plot(data:pd.DataFrame, silent=False) -> Tuple[str, List[str]]:
     return None
 
 
-
-def plotting(data:pd.DataFrame, path:Path=None, save=False) -> Tuple[Figure, Any]:
+def plotting(data:pd.DataFrame, path:Path=None, save=False, show=True) -> Tuple[Figure, Any]|None:
     """Plot processed measurements.
     The out path in 'path' argument is assumed to be a full path to the output file
     including the file name. 
-    If 'save' argument is set to True, plot will be saved to the file. Otherwise
-    it will be displayed.
+    If 'save' argument is set to True, the plot will be saved to the file. If 
+    'show' argument is set to True, the plot will be displayed. Both options can
+    be used at the same time. For both flags set to False the function skips
+    execution and returns early.
 
     Args:
         data (pd.DataFrame): data.
         path (Path, optional): output path. Defaults to None.
         save (bool, optional): whether to save the plot instead of displaying it. Defaults to False.
+        show (bool, optional): whether to save the plot instead of displaying it. Defaults to False.
 
     Raises:
         ValueError: raised when input data frame does not contain columns with processed data.
@@ -342,6 +353,8 @@ def plotting(data:pd.DataFrame, path:Path=None, save=False) -> Tuple[Figure, Any
     Returns:
         Tuple[Figure, Any]: figure and axes objects with created plot(s).
     """
+    if not (save or show):
+        return None
     # if processed data available create two axes to display both
     data.sort_values(by=['X','Y','Z'])
     n = 0
@@ -392,7 +405,7 @@ def plotting(data:pd.DataFrame, path:Path=None, save=False) -> Tuple[Figure, Any
         path = parent/f'{stem}.{format}'
         
         plt.savefig(fname=path, format=format, bbox_inches='tight')
-    else:
+    if show:
         plt.show()
     return fig, axs
 
