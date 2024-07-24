@@ -210,16 +210,22 @@ def _closest_val(data:npt.ArrayLike, x:float) -> Tuple[int, float]:
     return ind, data[ind]
 
 
-def postprocessing(data:pd.DataFrame, mode:str|List[str], sigfreq:float=None, freqsamp:float|int=None):
+def postprocessing(
+        data:pd.DataFrame,
+        mode:str|List[str],
+        modulation_frequency:float=None,
+        det_freq:float|int=None
+):
     """In-place processing of raw data from measurements.
     Data after processing is appended as a new column.
-    'sigfreq' and 'freqsamp' are necessary only for the 'fft' mode.
+    'modulation_frequency' and 'det_freq' are necessary only for the 'fft' mode.
 
     Args:
         data (pd.DataFrame): dataframe with raw data
         mode (str|List[str]): what processing method to apply
-        sigfreq (float, optional): frequency of signal to read value from after application of FFT. Defaults to None.
-        freqsamp (float,int, optional): sampling frequency of the detector
+        modulation_frequency (float, optional): frequency of signal modulation
+        to read value from after application of FFT. Defaults to None.
+        det_freq (float,int, optional): sampling frequency of the detector
 
     Raises:
         ValueError: raised if signal frequency or sampling frequency are not provided (only for 'fft' mode)
@@ -238,14 +244,14 @@ def postprocessing(data:pd.DataFrame, mode:str|List[str], sigfreq:float=None, fr
         return val
 
     elif 'fftmax' in mode:
-        if freqsamp is None:
+        if det_freq is None:
             raise ValueError("Signal sample spacing required")
 
         fft = workdata.map(lambda x: np.fft.rfft(x))
 
         # find max value and its frequency
-        sample_spacing = 1/freqsamp
-        freqs = np.fft.rfftfreq(fft[0].size, sample_spacing)
+        sample_spacing = 1/det_freq
+        freqs = np.fft.rfftfreq(workdata[0].size, sample_spacing)
         print(fft[0])
         print(freqs)
         
@@ -266,17 +272,29 @@ def postprocessing(data:pd.DataFrame, mode:str|List[str], sigfreq:float=None, fr
         return [1.0, 1.0]
 
     elif 'fft' in mode:
-        if sigfreq is None:
+        if modulation_frequency is None:
             raise ValueError("Signal frequency required")
-        if freqsamp is None:
+        if det_freq is None:
             raise ValueError("Signal sample spacing required")
 
         fft = workdata.map(lambda x: np.fft.rfft(x))
+        # for w in workdata:
+        #     print(w.shape)
+        sum = 0 
+        for w in workdata:
+            sum += w.size
+        print(sum/workdata.size)
 
         # calculate closes frequency bin
-        sample_spacing = 1/freqsamp
-        freqs = np.fft.rfftfreq(fft[0].size, sample_spacing)
-        ind, freq = _closest_val(freqs, sigfreq)
+        sample_spacing = 1/det_freq
+        freqs = np.fft.rfftfreq(workdata[0].size, sample_spacing)
+        # freqs = np.fft.rfftfreq(fft[0].size, sample_spacing)
+        ind, freq = _closest_val(freqs, modulation_frequency)
+        # print(freqs)
+        # print(fft[0])
+        # print(freqs.shape)
+        # for i in fft:
+        #     print(i.shape)
         # TODO: check if normalization is correct (1/N)
         val = fft.map(lambda x: np.abs(x[ind])/x.size)
         data['FFT'] = val
