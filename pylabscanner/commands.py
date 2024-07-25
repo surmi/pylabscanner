@@ -12,9 +12,13 @@ import pandas as pd
 from numpy import sqrt
 from time import time
 from tqdm import tqdm
+import threading
+from queue import Queue, Empty
+import matplotlib.pyplot as plt
+import numpy as np
 
 from .LTS import LTS, LTSC, steps2mm, mm2steps, aso_move_devs, aso_home_devs
-from .devices import Detector, Source, BoloMsgFreq, BoloMsgSamples, BoloMsgSensor
+from .devices import Detector, Source, BoloLine, BoloMsgFreq, BoloMsgSamples, BoloMsgSensor
 
 
 # Message parts for the bolometer
@@ -489,3 +493,107 @@ class ScanRoutine():
         stop_time = time()
         self.ta_act = stop_time-start_time
         return self.data
+
+
+# LiveView
+class LiveView:
+    def __init__(self, detector:BoloLine) -> None:
+        self.detector = detector
+        self.measurements = Queue()
+        self.shutdown_event = threading.Event()
+        self._log = logging.getLogger(__name__)
+
+        self.detector_thread = threading.Thread(
+            target=self._detector_controller,
+            args=(self.shutdown_event, self.measurements),
+            name="detector_controller"
+        )
+        self.interrupt_thread = threading.Thread(
+            target=self._interrupt_controller,
+            args=(self.shutdown_event,),
+            name="interrupt_controller"
+        )
+        threading.excepthook = self._interrupt_hook
+
+    def start(self) -> None:
+        # with ThreadPoolExecutor(max_workers=2) as e:
+        #     f = e.submit(
+        #         self._detector_controller,
+        #         self.shutdown_event,
+        #         self.measurements
+        #     )
+        #     f2 = e.submit(
+        #         self._interrupt_controller,
+        #         self.shutdown_event,
+        #     )
+        #     f.result()
+        #     f2.result()
+        #     self._plot_controller(self.shutdown_event, self.measurements)
+        self.detector_thread.start()
+        self.interrupt_thread.start()
+        self._plot_controller(self.shutdown_event, self.measurements)
+        self.detector_thread.join()
+        self.interrupt_thread.join()
+
+    def _interrupt_hook(self, args):
+        self._log.error(f'Thread {args.thread.getName()} failed with exception {args.exc_value}')
+        self._log.error(args.exc_traceback)
+        self._log.error('Shutting down')
+        self.shutdown_event.set()
+
+    def _detector_controller(self, shutdown_event:threading.Event, queue:Queue):
+        while True:
+            # sleep(2)
+            # y = np.random.random([10,1])
+            measurement = self.detector.measure()
+            det_no_samp = len(measurement)
+            det_freq = self.detector.get_freq()
+            queue.put({
+                'data':measurement,
+                'det_no_samp':det_no_samp,
+                'det_freq':det_freq
+            })
+            if shutdown_event.is_set():
+                break
+        print("Detector thread finished")
+
+    def _interrupt_controller(self, shutdown_event:threading.Event) -> None:
+        input("Press ENTER to close LiveView")
+        shutdown_event.set()
+
+    def _plot_controller(self, shutdown_event:threading.Event, queue:Queue):
+        plt.ion()
+        y = np.random.random([10,1])
+        yx = y
+        fft = y
+        fftx = y
+        while True:
+            try:
+                payload = self.measurements.get_nowait()
+                y = payload['data']
+                det_no_samp = payload['det_no_samp']
+                det_freq = payload['det_freq']
+                dt = 1/det_freq
+                yx = np.arange(0, det_no_samp*dt, dt)
+                fft = np.abs(np.fft.rfft(y))
+                fftx = np.fft.rfftfreq(len(y), dt)
+            except Empty as e:
+                pass
+
+            # plot data
+            plt.subplot(211)
+            plt.plot(yx, y)
+            plt.ylim(bottom=0, top=3.3)
+
+            # plot fft
+            plt.subplot(212)
+            plt.plot(fftx, fft)
+
+            plt.draw()
+            plt.pause(0.0001)
+            plt.clf()
+            if shutdown_event.is_set():
+                plt.ioff()
+                plt.close('all')
+                break
+        print("Plot thread finished")

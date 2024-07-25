@@ -15,7 +15,7 @@ from serial import SerialException
 from .LTS import aso_home_devs, aso_move_devs, steps2mm
 from .devices import BoloLine, DeviceNotFoundError
 from .utils import init_stages, conv_to_steps, parse_range, parse_detector_settings, parse_filepath, postprocessing, plotting, saving, _parse_detector_frequency
-from .commands import LineStart, LineType, ScanRoutine
+from .commands import LineStart, LineType, ScanRoutine, LiveView
 
 
 class Config(object):
@@ -552,12 +552,41 @@ def getPosition(config:Config):
 
 
 @cli.command()
+@click.option('-dn', 'det_sens', type=click.Choice(['1','2','3','4']),
+              help='Detector sensor', default='1')
+@click.option('-ds', 'det_samp', type=click.Choice(['100','200','500','1000','2000','5000']),
+              help='Detector number of samples', default='100')
+@click.option('-df', 'det_freq', type=click.Choice(['1','2','5','10','20','40']),
+              help='Detector sampling frequency (in kHz)', default='1')
 @pass_config
-def liveRead(config:Config):
+def liveRead(
+    config:Config,
+    det_sens:str,
+    det_samp:str,
+    det_freq:str
+):
     """
     Displays live readout from the detector.
 
     TBD
     """
     # TODO: prepare live reading
-    raise NotImplementedError("Live display not implemented yet")
+    # raise NotImplementedError("Live display not implemented yet")
+    det_sens, det_samp, det_freq = parse_detector_settings(detsens=det_sens, detsamp=det_samp, detfreq=det_freq)
+
+    click.echo('Initializing LiveView threads...')
+    try:
+        lv = LiveView(detector=BoloLine(
+            sensor=det_sens,
+            samples=det_samp,
+            freq=det_freq,
+            cold_start=True
+        ))
+    except DeviceNotFoundError as e:
+        click.echo("Bolometer line not detected. Please check connection!")
+        raise click.Abort
+    click.echo('\tInitialized')
+
+    click.echo('Running LiveView')
+    lv.start()
+    click.echo('LiveView shut down')
