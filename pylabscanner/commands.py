@@ -497,11 +497,25 @@ class ScanRoutine():
 
 # LiveView
 class LiveView:
-    def __init__(self, detector:BoloLine) -> None:
+    """Live reading from THz bolometer line and plotting.
+    Implementation uses separate threads for detector control, plotting,
+    and handling standard input to identify when to stop the program.
+    """
+    def __init__(self, detector:BoloLine, logger:logging.Logger=None) -> None:
+        """Initialize all threads necessary for concurrent detector control,
+        plotting and reading from standard input (to stop the execution).
+
+        Args:
+            detector (BoloLine): detector handle
+            logger (logging.Logger, optional): logger handle. Defaults to None.
+        """
         self.detector = detector
         self.measurements = Queue()
         self.shutdown_event = threading.Event()
-        self._log = logging.getLogger(__name__)
+        if logger is None:
+            self._log = logging.getLogger(__name__)
+        else:
+            self._log = logger
 
         self.detector_thread = threading.Thread(
             target=self._detector_controller,
@@ -516,19 +530,11 @@ class LiveView:
         threading.excepthook = self._interrupt_hook
 
     def start(self) -> None:
-        # with ThreadPoolExecutor(max_workers=2) as e:
-        #     f = e.submit(
-        #         self._detector_controller,
-        #         self.shutdown_event,
-        #         self.measurements
-        #     )
-        #     f2 = e.submit(
-        #         self._interrupt_controller,
-        #         self.shutdown_event,
-        #     )
-        #     f.result()
-        #     f2.result()
-        #     self._plot_controller(self.shutdown_event, self.measurements)
+        """Start all threads and join them on the finish.
+
+        The plotting controller needs to be in the main thread
+        (otherwise Tk has some problems).
+        """
         self.detector_thread.start()
         self.interrupt_thread.start()
         self._plot_controller(self.shutdown_event, self.measurements)

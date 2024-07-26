@@ -559,19 +559,19 @@ def getPosition(config:Config):
 @click.option('-df', 'det_freq', type=click.Choice(['1','2','5','10','20','40']),
               help='Detector sampling frequency (in kHz)', default='1')
 @pass_config
-def liveRead(
+def liveView(
     config:Config,
     det_sens:str,
     det_samp:str,
     det_freq:str
 ):
     """
-    Displays live readout from the detector.
+    Displays live readout and its FFT from the detector.
 
-    TBD
+    '-dn', '-ds', and '-df' are used to define detector parameters.
+
+    To stop the execution press ENTER while focused on the terminal.
     """
-    # TODO: prepare live reading
-    # raise NotImplementedError("Live display not implemented yet")
     det_sens, det_samp, det_freq = parse_detector_settings(detsens=det_sens, detsamp=det_samp, detfreq=det_freq)
 
     click.echo('Initializing LiveView threads...')
@@ -583,6 +583,8 @@ def liveRead(
             cold_start=True
         ))
     except DeviceNotFoundError as e:
+        config.logger.error("Detector not found on initialization.")
+        config.logger.error(e)
         click.echo("Bolometer line not detected. Please check connection!")
         raise click.Abort
     click.echo('\tInitialized')
