@@ -278,13 +278,14 @@ def postprocessing(
             raise ValueError("Signal sample spacing required")
 
         fft = workdata.map(lambda x: np.fft.rfft(x))
-        sum = 0 
-        for w in workdata:
-            sum += w.size
 
         # calculate closes frequency bin
         sample_spacing = 1/det_freq
-        freqs = np.fft.rfftfreq(workdata[0].size, sample_spacing)
+        freqs = []
+        if isinstance(workdata[0], list):
+            freqs = np.fft.rfftfreq(len(workdata[0]), sample_spacing)
+        else:
+            freqs = np.fft.rfftfreq(workdata[0].size, sample_spacing)
         # freqs = np.fft.rfftfreq(fft[0].size, sample_spacing)
         ind, freq = _closest_val(freqs, modulation_frequency)
         # TODO: check if normalization is correct (1/N)
