@@ -278,23 +278,15 @@ def postprocessing(
             raise ValueError("Signal sample spacing required")
 
         fft = workdata.map(lambda x: np.fft.rfft(x))
-        # for w in workdata:
-        #     print(w.shape)
         sum = 0 
         for w in workdata:
             sum += w.size
-        print(sum/workdata.size)
 
         # calculate closes frequency bin
         sample_spacing = 1/det_freq
         freqs = np.fft.rfftfreq(workdata[0].size, sample_spacing)
         # freqs = np.fft.rfftfreq(fft[0].size, sample_spacing)
         ind, freq = _closest_val(freqs, modulation_frequency)
-        # print(freqs)
-        # print(fft[0])
-        # print(freqs.shape)
-        # for i in fft:
-        #     print(i.shape)
         # TODO: check if normalization is correct (1/N)
         val = fft.map(lambda x: np.abs(x[ind])/x.size)
         data['FFT'] = val
@@ -371,6 +363,8 @@ def plotting(data:pd.DataFrame, path:Path=None, save=False, show=True) -> Tuple[
     Returns:
         Tuple[Figure, Any]: figure and axes objects with created plot(s).
     """
+    plt.set_loglevel('error')
+    logging.getLogger('PIL').setLevel(logging.ERROR)
     if not (save or show):
         return None
     # if processed data available create two axes to display both

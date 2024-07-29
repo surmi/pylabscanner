@@ -344,6 +344,8 @@ def scan(config:Config, x, y, z, outpath:Path, mode, noconfirmation, linestart,
     outpath, extension = parse_filepath(filepath=outpath, timestamp=timestamp, extension=extension)
     if postproc == 'raw' and plot:
         raise click.UsageError("Can't plot raw data")
+    elif postproc == 'fft' and chop_freq is None:
+        raise click.UsageError("Can't plot FFT data without modulation frequency")
 
     # initialize devices
     click.echo("Initializing devices...")
@@ -398,7 +400,13 @@ def scan(config:Config, x, y, z, outpath:Path, mode, noconfirmation, linestart,
         if postproc != 'raw':
             # do the postprocessing
             click.echo(f"Postprocessing - mode {postproc}")
-            postprocessing(data, postproc, chop_freq, det_freq.freq*1000)
+            try:
+                postprocessing(data, postproc, chop_freq, det_freq.freq*1000)
+            except BaseException as exception_any:
+                saving(data, outpath, 'failed_postproc')
+                click.echo("Exception while performing postprocessing")
+                config.logger.error(exception_any)
+                raise click.Abort
             click.echo("\tPostprocessing finished")
 
             # save processed data to file

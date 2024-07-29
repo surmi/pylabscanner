@@ -86,7 +86,7 @@ class BoloLine(Detector):
     """
     def get_ta(self) -> float:
         """Total acqusition time (between write to the device and read from the device) in seconds"""
-        return self._ta+self._readDelay
+        return self._ta+self._read_delay
     
     def get_sensor(self) -> str:
         """Number of the sensor to read from."""
@@ -123,10 +123,19 @@ class BoloLine(Detector):
 
     def _write(self) -> None:
         """Write message to the detector."""
-        self._dev.write(self._msg)
+        try:
+            self._dev.write(self._msg)
+        except serial.SerialTimeoutException as e:
+            raise e
 
     def _read(self) -> bytes:
         """Reads all bytes available in the buffor."""
+        while True:
+            if self._dev.in_waiting != 0 and self._dev.in_waiting >= self._samples.nsamp*2:
+                # print(self._dev.in_waiting)
+                break
+            sleep(self._read_delay)
+
         return self._dev.read(self._dev.in_waiting)
 
     def _makemsg(self) -> None:
@@ -144,14 +153,14 @@ class BoloLine(Detector):
         """To be used before first measurement after downtime of the device (device disconnected from power source)."""
         self._dev.reset_input_buffer()
         self._dev.reset_output_buffer()
-
+        
         self._write()
-        sleep(self._readDelay)
+        sleep(self._read_delay)
         sleep(self._ta)
         self._read()
 
         self._write()
-        sleep(self._readDelay)
+        sleep(self._read_delay)
         sleep(self._ta)
         self._read()
 
@@ -182,7 +191,8 @@ class BoloLine(Detector):
             self._port = next(list_ports.grep(restr)).name
         except StopIteration as e:
             raise DeviceNotFoundError(msg="Bolometer line not found.")
-        self._readDelay = 0.01 # selected experimentally (longer wait time may be necessary)
+        self._read_delay = 0.001 # selected experimentally (longer wait time may be necessary)
+        self._write_delay = 0.001
         self._dev = serial.Serial(
             port=self._port,
             baudrate=115200,
@@ -202,17 +212,20 @@ class BoloLine(Detector):
         self._dev.reset_input_buffer()
         self._dev.reset_output_buffer()
         frame = []
-        self._write()
-        sleep(self._readDelay)
-        frame.append(self._read())
-        self._write()
-        sleep(self._readDelay)
-        frame.append(self._read())
-        self._write()
-        sleep(self._readDelay)
-        frame.append(self._read())
-        self._write()
-        sleep(self._readDelay)
+        try:
+            self._write()
+            sleep(self._read_delay)
+            frame.append(self._read())
+            self._write()
+            sleep(self._read_delay)
+            frame.append(self._read())
+            self._write()
+            sleep(self._read_delay)
+            frame.append(self._read())
+            self._write()
+            sleep(self._read_delay)
+        except serial.SerialTimeoutException as e:
+            raise e
         frame.append(self._read())
         for ans in frame:
             if len(ans)>0:
@@ -228,6 +241,7 @@ class BoloLine(Detector):
                 break
         
         # finish setup
+        self._initialized = True
         self._sensor = sensor
         self._samples = samples
         self._freq = freq
@@ -259,42 +273,33 @@ class BoloLine(Detector):
     def measure(self) -> List[float]:
         """Perform single measurement. Requires additional write and read due to the fact how the detector works.
 
+        Raises:
+            serial_timeout_exception: exception raised on timeout while writing
+            command to the detector
+
         Returns:
             List[float]: Measured data converted from list of bytes to floats.
         """
         self._dev.reset_input_buffer()
         self._dev.reset_output_buffer()
 
-        self._write()
-        sleep(self._readDelay)
-        sleep(self._ta)
-        self._read()
+        try:
+            self._write()
+            sleep(self._write_delay)
+            self._read()
 
-        self._write()
-        sleep(self._readDelay)
-        sleep(self._ta)
+            self._write()
+            sleep(self._write_delay)
+        except serial.SerialTimeoutException as serial_timeout_exception:
+            raise serial_timeout_exception
 
-        data = self.pairwise(self._trimans(self._read()))
+        data = self.pairwise(self._read())
+        # data = self.pairwise(self._trimans(self._read()))
         # all_frames.append(self._trimans(self._read()))
         
         return data
     
-    async def measure_async(self) -> List[float]:
-        """Asynchronous single measure."""
-        self._dev.reset_input_buffer()
-        self._dev.reset_output_buffer()
-
-        self._write()
-        await asyncio.sleep(self._readDelay + self._ta)
-        self._read()
-
-        self._write()
-        await asyncio.sleep(self._readDelay + self._ta)
-        data = self.pairwise(self._trimans(self._read()))
-        
-        return data
-
-    def measure_series(self, n: int, interval: float = None, start_delay: float = 0) -> List[List[float]]:
+    def measure_series(self, n: int, interval: float = None, start_delay: float = -1) -> List[List[float]]:
         """Measures `n` times (+ additional write/read due to the device properties).
 
         Args:
@@ -308,11 +313,12 @@ class BoloLine(Detector):
         Returns:
             List[List[float]]: List of measurements.
         """
+        # TODO: correct doc
         data = []
 
         if interval is None:
-            interval = self._ta + self._readDelay
-        elif interval < (self._ta + self._readDelay):
+            interval = self._write_delay
+        elif interval < self._write_delay:
             raise ValueError("interval has to be greater or equal to the sum of _ta and _readDelay")
 
         if n > 0 and start_delay >= 0:
@@ -321,58 +327,28 @@ class BoloLine(Detector):
 
             sleep(start_delay) # don't think we need that high time precision, but FYI when sleep is called with 0 it will release GIL (on Windows at least)
 
-            self._write()
-            sleep(interval)
-            self._read()
-
-            for i in range(n-1):
+            try:
                 self._write()
                 sleep(interval)
-                data.append(self._read())
+                self._read()
 
-            # one more time just to read last data point
-            self._write()
-            sleep(self._readDelay+self._ta)
-            data.append(self._read())
-        else:
-            raise ValueError("n has to be greater than 0 and start_delay has to be greater than or equal to 0")
-        
-        # retrieve decimal values from frames
-        return [self.pairwise(self._trimans(i)) for i in data]
+                for i in range(n-1):
+                    self._write()
+                    sleep(interval)
+                    data.append(self._read())
 
-
-    async def measure_series_async(self, n: int, interval: float = None, start_delay: float = 0) -> List[List[float]]:
-        data = []
-
-        if interval is None:
-            interval = self._ta + self._readDelay
-        elif interval < (self._ta + self._readDelay):
-            raise ValueError("interval has to be greater or equal to the sum of _ta and _readDelay")
-
-        if n > 0 and start_delay >= 0:
-            self._dev.reset_input_buffer()
-            self._dev.reset_output_buffer()
-
-            await asyncio.sleep(start_delay)
-
-            self._write()
-            await asyncio.sleep(interval)
-            self._read()
-
-            for i in range(n-1):
+                # one more time just to read last data point
                 self._write()
-                await asyncio.sleep(interval)
-                data.append(self._read())
-
-            # one more time just to read last data point
-            self._write()
-            await asyncio.sleep(self._readDelay+self._ta)
+            except serial.SerialTimeoutException as serial_timeout_exception:
+                raise serial_timeout_exception
+            sleep(self._write_delay)
             data.append(self._read())
         else:
             raise ValueError("n has to be greater than 0 and start_delay has to be greater than or equal to 0")
         
         # retrieve decimal values from frames
         return [self.pairwise(self._trimans(i)) for i in data]
+
 
 class Source(ABC):
     """Abstract class for sources."""
