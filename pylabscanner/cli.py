@@ -406,7 +406,9 @@ def scan(config:Config, x, y, z, outpath:Path, mode, noconfirmation, linestart,
                 saving(data, outpath, 'failed_postproc')
                 click.echo("Exception while performing postprocessing")
                 config.logger.error(exception_any)
-                raise click.Abort
+                click.echo(exception_any)
+                raise exception_any
+                # raise click.Abort
             click.echo("\tPostprocessing finished")
 
             # save processed data to file
