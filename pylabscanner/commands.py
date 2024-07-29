@@ -16,6 +16,7 @@ import threading
 from queue import Queue, Empty
 import matplotlib.pyplot as plt
 import numpy as np
+import traceback
 
 from .LTS import LTS, LTSC, steps2mm, mm2steps, aso_move_devs, aso_home_devs
 from .devices import Detector, Source, BoloLine, BoloMsgFreq, BoloMsgSamples, BoloMsgSensor
@@ -543,7 +544,7 @@ class LiveView:
 
     def _interrupt_hook(self, args):
         self._log.error(f'Thread {args.thread.getName()} failed with exception {args.exc_value}')
-        self._log.error(args.exc_traceback)
+        self._log.error(f'Traceback{traceback.print_tb(args.exc_traceback)}')
         self._log.error('Shutting down')
         self.shutdown_event.set()
 
@@ -553,7 +554,7 @@ class LiveView:
             # y = np.random.random([10,1])
             measurement = self.detector.measure()
             det_no_samp = len(measurement)
-            det_freq = self.detector.get_freq()
+            det_freq = self.detector.get_freq()*1000
             queue.put({
                 'data':measurement,
                 'det_no_samp':det_no_samp,
@@ -568,11 +569,17 @@ class LiveView:
         shutdown_event.set()
 
     def _plot_controller(self, shutdown_event:threading.Event, queue:Queue):
+        plt.set_loglevel('error')
+        logging.getLogger('PIL').setLevel(logging.ERROR)
         plt.ion()
         y = np.random.random([10,1])
         yx = y
         fft = y
         fftx = y
+        plt.subplots(
+                nrows=2,
+                ncols=1,
+            )
         while True:
             try:
                 payload = self.measurements.get_nowait()
@@ -583,17 +590,25 @@ class LiveView:
                 yx = np.arange(0, det_no_samp*dt, dt)
                 fft = np.abs(np.fft.rfft(y))
                 fftx = np.fft.rfftfreq(len(y), dt)
+                # self._log.debug(f"step: {dt}")
             except Empty as e:
                 pass
 
             # plot data
+            
             plt.subplot(211)
             plt.plot(yx, y)
+            plt.ylabel('Amplitude [V]')
+            plt.xlabel('Time [s]')
             plt.ylim(bottom=0, top=3.3)
 
             # plot fft
             plt.subplot(212)
             plt.plot(fftx, fft)
+            plt.ylabel('Amplitude [V]')
+            plt.xlabel('Frequency [Hz]')
+            plt.ylim(bottom=0.0, top=5.0)
+            plt.xlim(left=0.0, right=1050)
 
             plt.draw()
             plt.pause(0.0001)
