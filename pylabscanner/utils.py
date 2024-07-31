@@ -364,8 +364,8 @@ def plotting(data:pd.DataFrame, path:Path=None, save=False, show=True) -> Tuple[
     Returns:
         Tuple[Figure, Any]: figure and axes objects with created plot(s).
     """
-    plt.set_loglevel('error')
-    logging.getLogger('PIL').setLevel(logging.ERROR)
+    # plt.set_loglevel('error')
+    # logging.getLogger('PIL').setLevel(logging.ERROR)
     if not (save or show):
         return None
     # if processed data available create two axes to display both

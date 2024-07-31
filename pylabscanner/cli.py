@@ -55,18 +55,31 @@ def cli(confobj:Config, debug, config:Path):
     - LUVITERA THZ MINI 4x1 line of wideband bolometers.
     """
     # logging
-    logging.basicConfig(filename="log.txt",
-                    # filemode='a',
-                    filemode='w',
-                    format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
-                    datefmt='%H:%M:%S',
-                    level=logging.DEBUG)
-    confobj.logger = logging.getLogger(__name__)
     if debug:
         click.echo("Debug mode is on")
-        confobj.debug = debug
+        logging.basicConfig(filename="log.txt",
+                        filemode='a',
+                        # filemode='w',
+                        format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
+                        datefmt='%H:%M:%S',
+                        level=logging.DEBUG)
     else:
-        confobj.logger.setLevel(logging.ERROR)
+        logging.basicConfig(level=logging.ERROR)
+
+    # logging.basicConfig(filename="log.txt",
+    # logging.basicConfig(filename=logging_destination,
+    #                 # filemode='a',
+    #                 filemode='w',
+    #                 format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
+    #                 datefmt='%H:%M:%S',
+    #                 level=logging_level)
+                    # level=logging.DEBUG)
+    confobj.logger = logging.getLogger(__name__)
+    # if debug:
+    #     click.echo("Debug mode is on")
+    #     confobj.debug = debug
+    # else:
+    #     confobj.logger.setLevel(logging.ERROR)
 
 
     config_path = Path(__file__).parent.parent / 'config.ini'
