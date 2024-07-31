@@ -293,11 +293,27 @@ class BoloLine(Detector):
         except serial.SerialTimeoutException as serial_timeout_exception:
             raise serial_timeout_exception
 
-        data = self.pairwise(self._read())
-        # data = self.pairwise(self._trimans(self._read()))
+        # data = self.pairwise(self._read())
+        data = self.pairwise(self._trimans(self._read()))
         # all_frames.append(self._trimans(self._read()))
         
         return data
+    
+    def live_view_read(self) -> List[float]:
+        # WARNING: not tested yet
+        self._dev.reset_input_buffer()
+        self._dev.reset_output_buffer()
+
+        try:
+            self._write()
+            sleep(self._write_delay)
+            data = self.pairwise(self._trimans(self._read()))
+
+        except serial.SerialTimeoutException as serial_timeout_exception:
+            raise serial_timeout_exception
+
+        return data
+
     
     def measure_series(self, n: int, interval: float = None, start_delay: float = -1) -> List[List[float]]:
         """Measures `n` times (+ additional write/read due to the device properties).
