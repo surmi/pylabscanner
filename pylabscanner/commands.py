@@ -608,7 +608,8 @@ class LiveView:
             plt.ylabel('Amplitude [V]')
             plt.xlabel('Frequency [Hz]')
             plt.ylim(bottom=0.0, top=5.0)
-            plt.xlim(left=0.0, right=1050)
+            # plt.xlim(left=0.0, right=1050)
+            plt.xlim(left=0.0)
 
             plt.draw()
             plt.pause(0.0001)
