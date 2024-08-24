@@ -3,15 +3,18 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 name = "pypi"
 
+[pipenv]
+sort_pipfile = true
+
 [packages]
-pyserial = "*"
-thorlabs-apt-device = "*"
 click = "*"
+matplotlib = "*"
 numpy = "*"
 pandas = "*"
-matplotlib = "*"
-tqdm = "*"
 pylabscanner = {file = ".", editable = true}
+pyserial = "*"
+thorlabs-apt-device = "*"
+tqdm = "*"
 
 [dev-packages]
 
