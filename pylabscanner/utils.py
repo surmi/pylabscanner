@@ -369,7 +369,7 @@ def plotting(data:pd.DataFrame, path:Path=None, save=False, show=True) -> Tuple[
     if not (save or show):
         return None
     # if processed data available create two axes to display both
-    data.sort_values(by=['X','Y','Z'])
+    data.sort_values(by=['X','Y','Z'], inplace=True)
     n = 0
     labels = []
     if 'MEAN' in data.columns:
