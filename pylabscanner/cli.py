@@ -245,7 +245,7 @@ def moveTo(config:Config, x, y, z):
 @click.option('-plts', 'plot_save', is_flag=True, default=False, 
               help='Whether to save the plot of the output data')
 @click.option('-post', 'postproc', default='raw',
-              type=click.Choice(['raw', 'mean', 'fft', 'fftmax']),
+              type=click.Choice(['raw', 'mean', 'fft']),
               help='Postprocessing of obtained measurements')
 @click.option('-f', 'chop_freq', type=float,
               help='Signal modulation frequency in Hz (if used)')
@@ -440,7 +440,7 @@ def scan(config:Config, x, y, z, outpath:Path, mode, noconfirmation, linestart,
     )
 )
 @click.option('-post', 'postproc', default=None,
-              type=click.Choice(['mean', 'fft', 'fftmax']),
+              type=click.Choice(['mean', 'fft']),
               help='Postprocessing of obtained measurements')
 @click.option('-save', 'plot_save', is_flag=True, default=False, 
               help='Whether to save the plot of the output data')
@@ -523,24 +523,12 @@ def plot(
                         chop_freq = click.prompt("What was the chopper frequency "
                             "in this measurement (in Hz)?",
                             type=float)
-            elif postproc == 'fftmax':
-                if det_freq_source == ParameterSource.DEFAULT:
-                    if "det_freq" in metadata:
-                        # default value -> use metadata
-                        det_freq = metadata['det_freq']
-                    else:
-                        # prompt user
-                        det_freq = click.prompt("What was the detector's frequency "
-                            "in this measurement (in kHz)? (available options: "
-                            "1, 2, 5, 10, 20, 40)",
-                            type=click.Choice(['1','2','5','10','20','40']))
-                det_freq = _parse_detector_frequency(detfreq=det_freq)
 
             click.echo(f"Postprocessing - mode {postproc}")
             postprocessing(data, postproc, chop_freq, det_freq.freq*1000)
             click.echo("\tPostprocessing finished")
             
-            plot_result = plotting(data=data, path=outpath, save=plot_save)
+            # plot_result = plotting(data=data, path=outpath, save=plot_save)
     elif len(files) > 1:
         raise NotImplementedError("Plotting multiple files not implemented yet")
         if postproc is None:

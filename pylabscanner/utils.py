@@ -243,34 +243,6 @@ def postprocessing(
         data['MEAN'] = val
         return val
 
-    elif 'fftmax' in mode:
-        if det_freq is None:
-            raise ValueError("Signal sample spacing required")
-
-        fft = workdata.map(lambda x: np.fft.rfft(x))
-
-        # find max value and its frequency
-        sample_spacing = 1/det_freq
-        freqs = np.fft.rfftfreq(workdata[0].size, sample_spacing)
-        print(fft[0])
-        print(freqs)
-        
-        # get max value and find its index
-        threshold_freq = 100
-        print(freqs.shape)
-        print(fft[0].size)
-        valtmp = fft.map(lambda x: np.max(np.abs(x[freqs>threshold_freq])))
-        # indtmp = fft.map(lambda x: np.argmax(np.abs(x[freqs>threshold_freq])))
-        print(valtmp)
-        # print(indtmp)
-
-        # max_value_ind, max_value = _closest_val(fft, np.max(fft))
-        # TODO: check if normalization is correct (1/N)
-        # data['FFT_max'] = max_value
-        # data['FFT_max_freq'] = freqs[max_value_ind]
-        # return freqs[max_value_ind], max_value
-        return [1.0, 1.0]
-
     elif 'fft' in mode:
         if modulation_frequency is None:
             raise ValueError("Signal frequency required")
@@ -286,7 +258,6 @@ def postprocessing(
             freqs = np.fft.rfftfreq(len(workdata[0]), sample_spacing)
         else:
             freqs = np.fft.rfftfreq(workdata[0].size, sample_spacing)
-        # freqs = np.fft.rfftfreq(fft[0].size, sample_spacing)
         ind, freq = _closest_val(freqs, modulation_frequency)
         # TODO: check if normalization is correct (1/N)
         val = fft.map(lambda x: np.abs(x[ind])/x.size)
