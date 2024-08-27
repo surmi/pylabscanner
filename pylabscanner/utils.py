@@ -394,11 +394,12 @@ def plotting(data:pd.DataFrame, path:Path=None, save=False, show=True) -> Tuple[
     return fig, axs
 
 
-def saving(data:pd.DataFrame, path:Path, label:str=None):
+def saving(data:pd.DataFrame, metadata:dict, path:Path, label:str=None):
     """Save data to a file.
 
     Args:
         data (pd.DataFrame): data frame with measurements.
+        metadata (dict): metadata to attach to the file.
         path (Path): path to where the data should be saved.
         label (str, optional): if provided, will be attached to the file name. Defaults to None.
     """
@@ -411,6 +412,12 @@ def saving(data:pd.DataFrame, path:Path, label:str=None):
 
     path.parent.mkdir(exist_ok=True)
 
+    for k in metadata:
+        data.attrs[k] = metadata[k]
+
     # TODO: define other saving methods
+    with pd.HDFStore(path=path) as store:
+        store.put('data', data, format='table')
+        store.get_storer('data').attrs.metadata = data.attrs
     with path.open('w+') as f:
         data.to_csv(f)
