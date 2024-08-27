@@ -379,6 +379,26 @@ def scan(config:Config, x, y, z, outpath:Path, mode, noconfirmation, linestart,
     except DeviceNotFoundError as e:
         click.echo("Bolometer line not detected. Please check connection!")
         raise click.Abort
+    
+    metadata = {
+        'detector name': 'Luvitera THz Mini, 4 sensor bolometer line',
+        'detector sensor number': det_sens.name,
+        'detector sampling': det_samp.nsamp,
+        'detector sampling frequency [kHz]': det_freq.freq,
+        'signal modulation frequency [Hz]': chop_freq,
+        'x axis range [beg:end:no pts|pos]': x,
+        'y axis range [beg:end:no pts|pos]': y,
+        'z axis range [beg:end:no pts|pos]': z,
+        'scanning mode': mode,
+        'scanning line start': linestart
+    }
+    for stage in stages:
+        if stage.serial_number == config.stage_sn['x']:
+            metadata['x axis device'] = str(stage)
+        elif stage.serial_number == config.stage_sn['y']:
+            metadata['y axis device'] = str(stage)
+        elif stage.serial_number == config.stage_sn['z']:
+            metadata['z axis device'] = str(stage)
 
     click.echo("\tDevices initialized")
 
