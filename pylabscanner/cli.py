@@ -528,7 +528,7 @@ def plot(
             postprocessing(data, postproc, chop_freq, det_freq.freq*1000)
             click.echo("\tPostprocessing finished")
             
-            # plot_result = plotting(data=data, path=outpath, save=plot_save)
+            plot_result = plotting(data=data, path=outpath, save=plot_save)
     elif len(files) > 1:
         raise NotImplementedError("Plotting multiple files not implemented yet")
         if postproc is None:
