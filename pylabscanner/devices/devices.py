@@ -191,8 +191,8 @@ class BoloLine(Detector):
             self._port = next(list_ports.grep(restr)).name
         except StopIteration as e:
             raise DeviceNotFoundError(msg="Bolometer line not found.")
-        self._read_delay = 0.001 # selected experimentally (longer wait time may be necessary)
-        self._write_delay = 0.001
+        self._read_delay = 0.01 # selected experimentally (longer wait time may be necessary)
+        self._write_delay = 0.01
         self._dev = serial.Serial(
             port=self._port,
             baudrate=115200,

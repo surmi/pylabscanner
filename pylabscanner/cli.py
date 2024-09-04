@@ -363,6 +363,7 @@ def scan(config:Config, x, y, z, outpath:Path, mode, noconfirmation, linestart,
     # initialize devices
     click.echo("Initializing devices...")
     try:
+        config.logger.debug("Initalizing stages")
         stages = init_stages(stageslist=stagesstr, stage_no=config.stage_sn)
     except SerialException as e:
         config.logger.error("Serial connection error on stage initialization before homing operation.")
@@ -375,6 +376,7 @@ def scan(config:Config, x, y, z, outpath:Path, mode, noconfirmation, linestart,
         click.echo("Runetime error on stage initialization. Verify that stages are connected and powered on.\nRun the app with --debug command to see details in the log file.")
         raise click.Abort
     try:
+        config.logger.debug("Initalizing bolometers")
         bl = BoloLine(sensor=det_sens, samples=det_samp, freq=det_freq, cold_start=True)
     except DeviceNotFoundError as e:
         click.echo("Bolometer line not detected. Please check connection!")
