@@ -389,6 +389,13 @@ def plotting(data:pd.DataFrame, path:Path=None, save=False, show=True) -> Tuple[
     return fig, axs
 
 
+def load_data(path:Path):
+    with pd.HDFStore(path) as store:
+        metadata = store.get_storer('data').attrs.metadata
+        data = store.get('data')
+        return metadata, data
+
+
 def saving(data:pd.DataFrame, metadata:dict, path:Path, label:str=None):
     """Save data to a file.
 

@@ -14,7 +14,7 @@ from serial import SerialException
 
 from .LTS import aso_home_devs, aso_move_devs, steps2mm
 from .devices import BoloLine, DeviceNotFoundError
-from .utils import init_stages, conv_to_steps, parse_range, parse_detector_settings, parse_filepath, postprocessing, plotting, saving, _parse_detector_frequency
+from .utils import init_stages, conv_to_steps, parse_range, parse_detector_settings, parse_filepath, postprocessing, plotting, saving, _parse_detector_frequency, load_data
 from .commands import LineStart, LineType, ScanRoutine, LiveView
 
 
