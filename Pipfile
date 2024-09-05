@@ -13,6 +13,7 @@ numpy = "*"
 pandas = "*"
 pylabscanner = {file = ".", editable = true}
 pyserial = "*"
+tables = "*"
 thorlabs-apt-device = "*"
 tqdm = "*"
 
