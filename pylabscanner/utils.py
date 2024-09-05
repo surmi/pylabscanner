@@ -183,14 +183,9 @@ def parse_filepath(filepath:Path, timestamp:bool=True, extension:None|str=None) 
     stem = filepath.stem
     suffix = filepath.suffix
 
-    if extension is not None:
-        if not extension.startswith('.'):
-            extension = '.'+extension
-        # stem = stem + suffix
-        suffix = extension
-    elif suffix == '':
-        suffix = '.txt'
-    
+    if suffix.split('.')[-1] not in  ['h5','hdf5']:
+        suffix = suffix + '.h5'
+
     if timestamp:
         stem += '_{:%Y%m%d_%H%M%S}'.format(datetime.datetime.now())
     return (parent/f'{stem}{suffix}', suffix[1:])
@@ -415,9 +410,8 @@ def saving(data:pd.DataFrame, metadata:dict, path:Path, label:str=None):
     for k in metadata:
         data.attrs[k] = metadata[k]
 
-    # TODO: define other saving methods
     with pd.HDFStore(path=path) as store:
         store.put('data', data, format='table')
         store.get_storer('data').attrs.metadata = data.attrs
-    with path.open('w+') as f:
-        data.to_csv(f)
+    # with path.open('w+') as f:
+    #     data.to_csv(f)
