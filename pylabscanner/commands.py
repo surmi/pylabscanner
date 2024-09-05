@@ -292,6 +292,9 @@ class ScanRoutine():
         """
         # line scan always starts at min
         start_pos = [range.min() for range in self.ranges]
+        # TODO: test if this works for passing backward range e.g. -z 251:245:10
+        for r in self.ranges:
+            r.sort()
         vels = [steps2mm(stage.velparams['max_velocity'], stage.convunits['vel']) for stage in self.stages]
         t_ru = []
         s_ru = []
