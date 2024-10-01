@@ -10,10 +10,11 @@ import pandas as pd
 import configparser
 import shutil
 import filecmp
-from serial import SerialException
+from serial import SerialException, SerialTimeoutException
 
 from .LTS import aso_home_devs, aso_move_devs, steps2mm
 from .devices import BoloLine, DeviceNotFoundError
+from .utils import init_stages, conv_to_steps, parse_range, parse_detector_settings, parse_filepath, postprocessing, plotting, saving, _parse_detector_frequency, load_data
 from .utils import init_stages, conv_to_steps, parse_range, parse_detector_settings, parse_filepath, postprocessing, plotting, saving, _parse_detector_frequency, load_data
 from .commands import LineStart, LineType, ScanRoutine, LiveView
 
@@ -377,7 +378,14 @@ def scan(config:Config, x, y, z, outpath:Path, mode, noconfirmation, linestart,
     try:
         bl = BoloLine(sensor=det_sens, samples=det_samp, freq=det_freq, cold_start=True)
     except DeviceNotFoundError as e:
+        config.logger.error("Bolometer line not detected. Please check connection!")
+        config.logger.error(e)
         click.echo("Bolometer line not detected. Please check connection!")
+        raise click.Abort
+    except SerialTimeoutException as e:
+        config.logger.error("Timeout on bolometer line connection")
+        config.logger.error(e)
+        click.echo(f"Timeout on bolometer line connection: {e}")
         raise click.Abort
     
     metadata = {
@@ -422,13 +430,22 @@ def scan(config:Config, x, y, z, outpath:Path, mode, noconfirmation, linestart,
     if noconfirmation or click.confirm("Do you want to continue?"):
         # perform the operation
         click.echo("Measurement started")
-        sc.run()
+        try:
+            sc.run()
+        except SerialTimeoutException as e:
+            config.logger.error("Timeout on serial port")
+            config.logger.error(e)
+            click.echo(f"Timeout on serial port: {e}")
+            # home the stages
+            asyncio.run(aso_home_devs(stages), debug=config.debug)
+
+            raise click.Abort
         data = sc.data
         click.echo(f"Actual time of measurement: {floor(sc.ta_act/60)}m {sc.ta_act%60:.0f}s")
         click.echo("\tMeasurement finished")
 
         # save raw data to file
-        saving(data, outpath)
+        saving(data, metadata, outpath)
 
         if postproc != 'raw':
             # do the postprocessing
