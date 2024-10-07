@@ -111,7 +111,8 @@ class ActionFlyBy(Action):
                 measrng.min() - s_ru, self.stage.convunits["pos"]
             )
             self.data = {
-                order[0].name: [i for i in reversed(self.measrng)],
+                order[0].name: np.flip(self.measrng), # TODO: testing
+                # order[0].name: [i for i in reversed(self.measrng)],
             }
         else:
             self.final_pos = mm2steps(
@@ -120,8 +121,10 @@ class ActionFlyBy(Action):
             self.data = {
                 order[0].name: self.measrng,
             }
-        self.data[order[1].name] = [other_pos[0]]*len(self.measrng)
-        self.data[order[2].name] = [other_pos[1]]*len(self.measrng)
+        self.data[order[1].name] = np.full(self.measrng.shape, other_pos[0]) # TODO: testing
+        # self.data[order[1].name] = [other_pos[0]]*len(self.measrng)
+        self.data[order[2].name] = np.full(self.measrng.shape, other_pos[1]) # TODO: testing
+        # self.data[order[2].name] = [other_pos[1]]*len(self.measrng)
 
     def __str__(self) -> str:
         if self.reverse:
@@ -167,14 +170,17 @@ class ActionPtByPt(Action):
 
         if self.reverse:
             self.data = {
-                order[0].name: [i for i in reversed(self.measrng)],
+                order[0].name: np.flip(self.measrng), #TODO: testing
+                # order[0].name: [i for i in reversed(self.measrng)],
             }
         else:
             self.data = {
                 order[0].name: self.measrng,
             }
-        self.data[order[1].name] = [other_pos[0]]*len(self.measrng)
-        self.data[order[2].name] = [other_pos[1]]*len(self.measrng)
+        self.data[order[1].name] = np.fill(self.measrng.shape, other_pos[0])
+        self.data[order[2].name] = np.fill(self.measrng.shape, other_pos[1])
+        # self.data[order[1].name] = [other_pos[0]]*len(self.measrng)
+        # self.data[order[2].name] = [other_pos[1]]*len(self.measrng)
 
     def __str__(self):
         if self.reverse:
@@ -267,6 +273,9 @@ class ScanRoutine():
         self.detector = detector
         self.source = source
         self.ranges = ranges
+        # in case if range is passed backwards
+        for r in self.ranges:
+            r.sort()
         self.order = order
         self.line_type = line_type
         self.line_start = line_start
@@ -292,9 +301,6 @@ class ScanRoutine():
         """
         # line scan always starts at min
         start_pos = [range.min() for range in self.ranges]
-        # TODO: test if this works for passing backward range e.g. -z 251:245:10
-        for r in self.ranges:
-            r.sort()
         vels = [steps2mm(stage.velparams['max_velocity'], stage.convunits['vel']) for stage in self.stages]
         t_ru = []
         s_ru = []
@@ -465,6 +471,8 @@ class ScanRoutine():
                         dist_btw_meas = self.ranges[self.order[0].value].max()-self.ranges[self.order[0].value].min()
                         self.ta += pts_per_line*calc_movetime(stage=self.stages[self.order[0].value], dist=dist_btw_meas)
                         self.ta += self.detector.get_ta()*len(self.ranges[self.order[0].value])
+            else:
+                raise NotImplemented("Single line scan not implemented yet")
 
         if self.fin_home:
             self.actions.append(ActionMoveTo(self.stages, [0, 0, 0]))
