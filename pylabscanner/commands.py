@@ -197,7 +197,8 @@ class ActionPtByPt(Action):
                 pos = mm2steps(i, self.stage.convunits["pos"])
                 asyncio.run(aso_move_devs(self.stage, pos=pos, waitfinished=True))
                 meas_val.append(self.detector.measure())
-                meas_pos.append(i)
+                meas_pos.append(self.stage.status['position']) #TODO: require testing; most probably require conversion
+                # meas_pos.append(i)
         else:
             for i in self.measrng:
                 pos = mm2steps(i, self.stage.convunits["pos"])
