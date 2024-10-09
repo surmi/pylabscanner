@@ -417,8 +417,8 @@ def saving(data:pd.DataFrame, metadata:dict, path:Path, label:str=None):
     for k in metadata:
         data.attrs[k] = metadata[k]
 
-    with pd.HDFStore(path=path) as store:
-        store.put('data', data, format='table')
-        store.get_storer('data').attrs.metadata = data.attrs
-    # with path.open('w+') as f:
-    #     data.to_csv(f)
+    # with pd.HDFStore(path=path) as store:
+    #     store.put('data', data, format='table')
+    #     store.get_storer('data').attrs.metadata = data.attrs
+    with path.open('w+') as f:
+        data.to_csv(f)

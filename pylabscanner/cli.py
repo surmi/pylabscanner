@@ -462,7 +462,7 @@ def scan(config:Config, x, y, z, outpath:Path, mode, noconfirmation, linestart,
             click.echo("\tPostprocessing finished")
 
             # save processed data to file
-            saving(data, outpath, label="postproc")
+            saving(data, metadata=metadata, path=outpath, label="postproc")
 
         if plot or plot_save:
             plotting(data, path=outpath, save=plot_save, show=plot)

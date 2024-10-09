@@ -87,13 +87,14 @@ class ActionMoveTo(Action):
     def run(self):
         asyncio.run(aso_move_devs(self.stages, pos=self.step_pos))
 
-    def get_ta(self):
-        if self.ta is None:
-            max_ta = 0
-            for stage, destination in zip(self.stages, self.pos):
-                distance = abs(stage.status["position"] - destination)
-                max_ta = max(max_ta, calc_movetime(stage, distance))
-            self.ta = max_ta
+    def get_ta(self, prev_position: List[float] | List[int]):
+        max_ta = 0
+        for stage, prev_pos, destination in zip(self.stages, prev_position, self.pos):
+            distance = abs(prev_pos - destination)
+            print(distance)
+            print(type(distance))
+            max_ta = max(max_ta, calc_movetime(stage, distance))
+        self.ta = max_ta
         return self.ta
 
 
@@ -200,18 +201,23 @@ class ActionPtByPt(Action):
         self.reverse = reverse
         self.order = order
         self.ta = None
+        self.last_position = [0.0, 0.0, 0.0]
 
         if self.reverse:
             self.data = {
                 order[0].name: np.flip(self.measrng),  # TODO: testing
                 # order[0].name: [i for i in reversed(self.measrng)],
             }
+            self.last_position[self.order[0].value] = np.flip(self.measrng)[-1]
         else:
             self.data = {
                 order[0].name: self.measrng,
             }
-        self.data[order[1].name] = np.fill(self.measrng.shape, other_pos[0])
-        self.data[order[2].name] = np.fill(self.measrng.shape, other_pos[1])
+            self.last_position[self.order[0].value] = self.measrng[-1]
+        self.data[order[1].name] = np.full(self.measrng.shape, other_pos[0])
+        self.last_position[self.order[1].value] = self.data[order[1].name]
+        self.data[order[2].name] = np.full(self.measrng.shape, other_pos[1])
+        self.last_position[self.order[2].value] = self.data[order[2].name]
         # self.data[order[1].name] = [other_pos[0]]*len(self.measrng)
         # self.data[order[2].name] = [other_pos[1]]*len(self.measrng)
 
@@ -233,6 +239,7 @@ class ActionPtByPt(Action):
                 meas_pos.append(
                     self.stage.status["position"]
                 )  # TODO: require testing; most probably require conversion
+                print(self.stage.status["position"])
                 # meas_pos.append(i)
         else:
             for i in self.measrng:
@@ -252,14 +259,12 @@ class ActionPtByPt(Action):
             dist_btw_meas = (
                 self.measrng.max() - self.measrng.min()
             )  # TODO: shouldn't be here a division by the number of points?
-            self.ta += pts_per_line * calc_movetime(
-                stage=self.measrng, dist=dist_btw_meas
-            )
+            self.ta = pts_per_line * calc_movetime(stage=self.stage, dist=dist_btw_meas)
             self.ta += self.detector.get_ta() * self.measrng.size
         return self.ta
 
 
-def calc_startposmod(stage: APTDevice_Motor) -> Tuple[float, float]:
+def calc_startposmod(stage: LTS) -> Tuple[float, float]:
     """Calculate modification of position due to the stage needing to ramp up to constant velocity.
 
     Args:
@@ -622,6 +627,7 @@ class ScanRoutine:
         # move correct iterator by one and do a for loop.
         # Otherwise this is a single line scan and loop is not necessary.
         reverse = False
+        previous_position = [stage.status["position"] for stage in self.stages]
         if (
             len(self.ranges[self.order[1].value]) > 1
             or len(self.ranges[self.order[2].value]) > 1
@@ -635,7 +641,9 @@ class ScanRoutine:
                     # go to the starting position of next line
                     starting_position_action = ActionMoveTo(self.stages, start_line_pos)
                     self.actions.append(starting_position_action)
-                    self.ta += starting_position_action.get_ta()
+                    self.ta += starting_position_action.get_ta(
+                        prev_position=previous_position
+                    )
 
                     # do the line
                     line_action = ActionPtByPt(
@@ -649,10 +657,11 @@ class ScanRoutine:
                     self.actions.append(line_action)
                     self.ta += line_action.get_ta()
 
-                    # calculate new starting position
+                    # calculate new starting position and set previous
                     start_line_pos = self._calculate_starting_position(
                         other_axis_positions=(j, i), reverse=reverse
                     )
+                    previous_position = line_action.last_position
 
                     # reverse the line
                     reverse = not reverse

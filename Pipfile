@@ -11,14 +11,14 @@ click = "*"
 matplotlib = "*"
 numpy = "*"
 pandas = "*"
-pylabscanner = {file = ".", editable = true}
 pyserial = "*"
 tables = "*"
 thorlabs-apt-device = "*"
 tqdm = "*"
+pylabscanner = {file = ".", editable = true}
 
 [dev-packages]
 ipykernel = "*"
 
 [requires]
-python_version = "3.12.6"
+python_version = "3.12"
