@@ -23,6 +23,7 @@ dynamic = ["version"]
 labscanner = "pylabscanner:cli"
 
 [tool.setuptools.packages.find]
+where = ["src"]
 exclude = ["test", "examples"]
 
 [tool.setuptools.dynamic]
