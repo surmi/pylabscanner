@@ -8,14 +8,16 @@ sort_pipfile = true
 
 [packages]
 click = "*"
+h5py = "*"
 matplotlib = "*"
 numpy = "*"
 pandas = "*"
+pylabscanner = {file = ".", editable = true}
 pyserial = "*"
+pytest = "*"
 tables = "*"
 thorlabs-apt-device = "*"
 tqdm = "*"
-pylabscanner = {file = ".", editable = true}
 
 [dev-packages]
 ipykernel = "*"

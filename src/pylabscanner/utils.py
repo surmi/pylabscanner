@@ -3,16 +3,20 @@ from time import sleep
 import datetime
 from pathlib import Path
 import pandas as pd
+from pandas.api.types import is_object_dtype
 import matplotlib.pyplot as plt
 from typing import List, Tuple, Any, Dict
 import numpy.typing as npt
 from matplotlib.figure import Figure
 from serial import SerialException
+from enum import Enum
 import logging
+import h5py
 
 from .LTS import LTS, LTSC, error_callback
 from .LTS import mm2steps
 from .devices import BoloMsgFreq, BoloMsgSamples, BoloMsgSensor
+from .commands import LineType, LineStart
 
 
 def init_stages(stageslist: str, stage_no: Dict[str, str]) -> List[LTS]:
@@ -420,36 +424,122 @@ def plotting(
     return fig, axs
 
 
-def load_data(path: Path):
-    with pd.HDFStore(path) as store:
-        metadata = store.get_storer("data").attrs.metadata
-        data = store.get("data")
-        return metadata, data
+def _match_enum(key: str, value: Any) -> Any:
+    """_summary_
+
+    Args:
+        key (str): string matching enum.
+        value (Any): string matching specific value of enum.
+
+    Returns:
+        Any: matched enum value or `value`.
+    """    
+    if key == "detector sensor number":
+        return BoloMsgSensor[value]
+    elif key == "detector sampling":
+        return BoloMsgSamples[value]
+    elif key == "detector sampling frequency [kHz]":
+        return BoloMsgFreq[value]
+    elif key == "scanning line start":
+        return LineStart[value]
+    elif key == "scanning mode":
+        return LineType[value]
+    return value
 
 
-def saving(data: pd.DataFrame, metadata: dict, path: Path, label: str = None):
+def load_data(path: Path) -> tuple[pd.DataFrame, dict[str, Any]|None]:
+    """Load data from file.
+    Handled extensions: `.csv` and `.h5`.
+    Metadata is only returned for `.h5` files.
+
+    Args:
+        path (Path): path to the file.
+
+    Raises:
+        NotImplementedError: raised for unhandled extensions.
+
+    Returns:
+        tuple[pd.DataFrame, dict[str, Any]|None]: data and metadata for `.h5`; otherwise data and `None`.
+    """    
+    if path.suffix == ".h5":
+        data = {}
+        metadata = {}
+        with h5py.File(path, mode="r") as f:
+            for descr in f["data"].dtype.descr:
+                k = descr[0]
+                if k == "MEASUREMENT":
+                    measurements = []
+                    for i in range(f["data"][k].shape[0]):
+                        measurements.append(f["data"][k][i])
+                    data[k] = measurements
+                else:
+                    data[k] = f["data"][k]
+            for k in f.attrs.keys():
+                metadata[k] = _match_enum(k, f.attrs[k])
+            data = pd.DataFrame(data)
+        return data, metadata
+    elif path.suffix == ".csv":
+        metadata = None
+        data = pd.read_csv(path, index_col=0)
+        if "MEASUREMENT" in data.columns:
+            measurement_col = data["MEASUREMENT"]
+            measurement = []
+            for i, measurement_str in enumerate(measurement_col):
+                measurement_str = measurement_str[1:-1]
+                measurement.append(np.fromstring(measurement_str, sep=" "))
+            data["MEASUREMENT"] = measurement
+            return data, metadata
+    else:
+        raise NotImplementedError(f'Files with {path.suffix} extension are not handled')
+
+
+def saving(
+    data: pd.DataFrame, path: Path, metadata: dict | None = None, label: str = None
+) -> None:
     """Save data to a file.
+    If `metadata` provided then saves to HDF5 file (with extension .h5).
+    Otherwise saves to CSV (with .csv extension).
+
+    NOTE: saving to CSV reduces precision of floating numbers in
+    `MEASUREMENT` column.
 
     Args:
         data (pd.DataFrame): data frame with measurements.
-        metadata (dict): metadata to attach to the file.
         path (Path): path to where the data should be saved.
+        metadata (dict | None, optional): metadata to attach to the file.
         label (str, optional): if provided, will be attached to the file name. Defaults to None.
     """
-    if label is not None:
-        # modif filename
-        parent = path.parent
-        stem = path.stem + f"_{label}"
-        suffix = path.suffix
-        path = parent / f"{stem}{suffix}"
+    if metadata is not None:
+        if label is not None:
+            # modify filename
+            parent = path.parent
+            stem = path.stem + f"_{label}"
+            suffix = path.suffix
+            path = parent / f"{stem}{suffix}"
+        path.parent.mkdir(exist_ok=True)
+        ds_dtype = [
+            ("X", np.float64),
+            ("Y", np.float64),
+            ("Z", np.float64),
+            ("MEASUREMENT", np.float64, data["MEASUREMENT"][0].shape),
+        ]
+        ds_arr = np.recarray(data["X"].shape, dtype=ds_dtype)
+        ds_arr["X"] = data["X"]
+        ds_arr["Y"] = data["Y"]
+        ds_arr["Z"] = data["Z"]
+        ds_arr["MEASUREMENT"] = np.zeros(
+            (data["MEASUREMENT"].size, data["MEASUREMENT"][0].size)
+        )
+        for i, v in enumerate(data["MEASUREMENT"]):
+            ds_arr["MEASUREMENT"][i, :] = v
 
-    path.parent.mkdir(exist_ok=True)
-
-    for k in metadata:
-        data.attrs[k] = metadata[k]
-
-    # with pd.HDFStore(path=path) as store:
-    #     store.put('data', data, format='table')
-    #     store.get_storer('data').attrs.metadata = data.attrs
-    with path.open("w+") as f:
-        data.to_csv(f)
+        with h5py.File(path, "w") as f:
+            f.create_dataset("data", data=ds_arr, maxshape=(None))
+            for key, value in metadata.items():
+                if isinstance(value, Enum):
+                    f.attrs.create(key, value.name)
+                else:
+                    f.attrs[key] = value
+    else:
+        with path.open("w+") as f:
+            data.to_csv(f)
