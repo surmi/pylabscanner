@@ -29,3 +29,6 @@ exclude = ["test", "examples"]
 [tool.setuptools.dynamic]
 version = {attr = "pylabscanner.__version__"}
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
