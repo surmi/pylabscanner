@@ -23,8 +23,12 @@ dynamic = ["version"]
 labscanner = "pylabscanner:cli"
 
 [tool.setuptools.packages.find]
+where = ["src"]
 exclude = ["test", "examples"]
 
 [tool.setuptools.dynamic]
 version = {attr = "pylabscanner.__version__"}
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
