@@ -1,32 +1,31 @@
 #!/usr/bin/env python
-from typing import List, Tuple
-from numpy import ndarray, linspace
-from enum import Enum
-from thorlabs_apt_device.devices.aptdevice_motor import APTDevice_Motor
-import math
 import asyncio
-from abc import ABC, abstractmethod
 import logging
-from time import sleep
-import pandas as pd
-from numpy import sqrt
-from time import time
-from tqdm import tqdm
+import math
 import threading
-from queue import Queue, Empty
+import traceback
+from abc import ABC, abstractmethod
+from enum import Enum
+from queue import Empty, Queue
+from time import sleep, time
+from typing import List, Tuple
+
 import matplotlib.pyplot as plt
 import numpy as np
-import traceback
+import pandas as pd
+from numpy import linspace, ndarray, sqrt
+from thorlabs_apt_device.devices.aptdevice_motor import APTDevice_Motor
+from tqdm import tqdm
 
-from .LTS import LTS, LTSC, steps2mm, mm2steps, aso_move_devs, aso_home_devs
 from .devices import (
-    Detector,
-    Source,
     BoloLine,
     BoloMsgFreq,
     BoloMsgSamples,
     BoloMsgSensor,
+    Detector,
+    Source,
 )
+from .LTS import LTS, LTSC, aso_home_devs, aso_move_devs, mm2steps, steps2mm
 
 
 # Message parts for the bolometer

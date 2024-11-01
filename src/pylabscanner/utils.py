@@ -1,22 +1,22 @@
-import numpy as np
-from time import sleep
 import datetime
-from pathlib import Path
-import pandas as pd
-from pandas.api.types import is_object_dtype
-import matplotlib.pyplot as plt
-from typing import List, Tuple, Any, Dict
-import numpy.typing as npt
-from matplotlib.figure import Figure
-from serial import SerialException
-from enum import Enum
 import logging
-import h5py
+from enum import Enum
+from pathlib import Path
+from time import sleep
+from typing import Any, Dict, List, Tuple
 
-from .LTS import LTS, LTSC, error_callback
-from .LTS import mm2steps
+import h5py
+import matplotlib.pyplot as plt
+import numpy as np
+import numpy.typing as npt
+import pandas as pd
+from matplotlib.figure import Figure
+from pandas.api.types import is_object_dtype
+from serial import SerialException
+
+from .commands import LineStart, LineType
 from .devices import BoloMsgFreq, BoloMsgSamples, BoloMsgSensor
-from .commands import LineType, LineStart
+from .LTS import LTS, LTSC, error_callback, mm2steps
 
 
 def init_stages(stageslist: str, stage_no: Dict[str, str]) -> List[LTS]:
@@ -433,7 +433,7 @@ def _match_enum(key: str, value: Any) -> Any:
 
     Returns:
         Any: matched enum value or `value`.
-    """    
+    """
     if key == "detector sensor number":
         return BoloMsgSensor[value]
     elif key == "detector sampling":
@@ -447,7 +447,7 @@ def _match_enum(key: str, value: Any) -> Any:
     return value
 
 
-def load_data(path: Path) -> tuple[pd.DataFrame, dict[str, Any]|None]:
+def load_data(path: Path) -> tuple[pd.DataFrame, dict[str, Any] | None]:
     """Load data from file.
     Handled extensions: `.csv` and `.h5`.
     Metadata is only returned for `.h5` files.
@@ -460,7 +460,7 @@ def load_data(path: Path) -> tuple[pd.DataFrame, dict[str, Any]|None]:
 
     Returns:
         tuple[pd.DataFrame, dict[str, Any]|None]: data and metadata for `.h5`; otherwise data and `None`.
-    """    
+    """
     if path.suffix == ".h5":
         data = {}
         metadata = {}
@@ -490,7 +490,7 @@ def load_data(path: Path) -> tuple[pd.DataFrame, dict[str, Any]|None]:
             data["MEASUREMENT"] = measurement
             return data, metadata
     else:
-        raise NotImplementedError(f'Files with {path.suffix} extension are not handled')
+        raise NotImplementedError(f"Files with {path.suffix} extension are not handled")
 
 
 def saving(

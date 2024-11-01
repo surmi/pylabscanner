@@ -1,44 +1,50 @@
-from typing import List
+import asyncio
 from abc import ABC, abstractmethod
-import serial
-from serial.tools import list_ports
 from enum import Enum
 from time import sleep
-import asyncio
+from typing import List
+
+import serial
+from serial.tools import list_ports
 
 
 class BoloMsgSensor(Enum):
     """Parts of message that indicate which sensor is being read."""
-    FIRST =  (1).to_bytes(1) # first sensor
-    SECOND = (2).to_bytes(1) # second sensor
-    THIRD = (3).to_bytes(1) # third sensor
-    FOURTH = (4).to_bytes(1) # fourth sensor
+
+    FIRST = (1).to_bytes(1)  # first sensor
+    SECOND = (2).to_bytes(1)  # second sensor
+    THIRD = (3).to_bytes(1)  # third sensor
+    FOURTH = (4).to_bytes(1)  # fourth sensor
+
 
 class BoloMsgSamples(Enum):
     """Parts of message that indicate number of samples."""
-    S100 = ((1).to_bytes(1), 100) # 100 samples
-    S200 = ((2).to_bytes(1), 200) # 200 samples
-    S500 = ((5).to_bytes(1), 500) # 500 samples
-    S1000 = ((10).to_bytes(1), 1000) # 1000 samples
-    S2000 = ((20).to_bytes(1), 2000) # 2000 samples
-    S5000 = ((50).to_bytes(1), 5000) # 5000 samples
+
+    S100 = ((1).to_bytes(1), 100)  # 100 samples
+    S200 = ((2).to_bytes(1), 200)  # 200 samples
+    S500 = ((5).to_bytes(1), 500)  # 500 samples
+    S1000 = ((10).to_bytes(1), 1000)  # 1000 samples
+    S2000 = ((20).to_bytes(1), 2000)  # 2000 samples
+    S5000 = ((50).to_bytes(1), 5000)  # 5000 samples
 
     def __init__(self, msg, nsamp) -> None:
-        self.msg = msg # part of the message
-        self.nsamp = nsamp # number of samples
-    
+        self.msg = msg  # part of the message
+        self.nsamp = nsamp  # number of samples
+
+
 class BoloMsgFreq(Enum):
     """Parts of message that indicate frequency."""
-    F1 = ((1).to_bytes(1), 1) # 1 kHz
-    F2 = ((2).to_bytes(1), 2) # 2 kHz
-    F5 = ((5).to_bytes(1), 5) # 5 kHz
-    F10 = ((10).to_bytes(1), 10) # 10 kHz
-    F20 = ((20).to_bytes(1), 20) # 20 kHz
-    F40 = ((40).to_bytes(1), 40) # 40 kHz
+
+    F1 = ((1).to_bytes(1), 1)  # 1 kHz
+    F2 = ((2).to_bytes(1), 2)  # 2 kHz
+    F5 = ((5).to_bytes(1), 5)  # 5 kHz
+    F10 = ((10).to_bytes(1), 10)  # 10 kHz
+    F20 = ((20).to_bytes(1), 20)  # 20 kHz
+    F40 = ((40).to_bytes(1), 40)  # 40 kHz
 
     def __init__(self, msg, freq) -> None:
-        self.msg = msg # part of the message
-        self.freq = freq # frequency in kHz
+        self.msg = msg  # part of the message
+        self.freq = freq  # frequency in kHz
 
 
 class DeviceNotFoundError(Exception):
@@ -46,19 +52,20 @@ class DeviceNotFoundError(Exception):
         super().__init__(*args)
         self.device_name = device_name
         self.msg = msg
-    
+
     def __str__(self):
         if self.msg is None:
             if self.device_name is None:
-                return("Device not found.")
+                return "Device not found."
             else:
-                return(f"{self.device_name} not found.")
+                return f"{self.device_name} not found."
         else:
             return self.msg
 
 
 class Detector(ABC):
     """Abstract class for detectors."""
+
     @abstractmethod
     def __init__(self):
         pass
@@ -81,17 +88,18 @@ class Detector(ABC):
 
 class BoloLine(Detector):
     """Class for reading from line of bolometers by Luvitera.
-    
+
     Tested for THz mini (line of 4 wideband bolometers).
     """
+
     def get_ta(self) -> float:
         """Total acqusition time (between write to the device and read from the device) in seconds"""
-        return self._ta+self._read_delay
-    
+        return self._ta + self._read_delay
+
     def get_sensor(self) -> str:
         """Number of the sensor to read from."""
         return self._sensor.name
-    
+
     def set_sensor(self, sensor: BoloMsgSensor) -> None:
         """Change sensor to read from. Recalculates internal parameters"""
         self._sensor = sensor
@@ -100,7 +108,7 @@ class BoloLine(Detector):
     def get_samples(self) -> int:
         """Number of samples to register in single read."""
         return self._samples.nsamp
-    
+
     def set_samples(self, samples: BoloMsgSamples) -> None:
         """Change number of measured samples. Recalculates internal parameters"""
         self._samples = samples
@@ -110,7 +118,7 @@ class BoloLine(Detector):
     def get_freq(self) -> int:
         """Reading frequency in kHz."""
         return self._freq.freq
-    
+
     def set_freq(self, freq: BoloMsgFreq) -> None:
         """Change frequency of measuring samples. Recalculates internal parameters"""
         self._freq = freq
@@ -119,7 +127,7 @@ class BoloLine(Detector):
 
     def _recalculate_ta(self) -> None:
         """Recalculate time of acquisition after changing number of samples or frequency."""
-        self._ta = self._samples.nsamp / (self._freq.freq*1000)
+        self._ta = self._samples.nsamp / (self._freq.freq * 1000)
 
     def _write(self) -> None:
         """Write message to the detector."""
@@ -131,7 +139,10 @@ class BoloLine(Detector):
     def _read(self) -> bytes:
         """Reads all bytes available in the buffor."""
         while True:
-            if self._dev.in_waiting != 0 and self._dev.in_waiting >= self._samples.nsamp*2:
+            if (
+                self._dev.in_waiting != 0
+                and self._dev.in_waiting >= self._samples.nsamp * 2
+            ):
                 # print(self._dev.in_waiting)
                 break
             sleep(self._read_delay)
@@ -141,7 +152,7 @@ class BoloLine(Detector):
     def _makemsg(self) -> None:
         """Updates massage send on every write to the detector."""
         self._msg = self._sensor.value + self._samples.msg + self._freq.msg
-    
+
     def _makemsgparts(self, sensor=None, samples=None, frequency=None) -> None:
         """Set message send on every write to the detector based on parameters (if provided)."""
         sensor = self._sensor.value if sensor is None else sensor
@@ -153,7 +164,7 @@ class BoloLine(Detector):
         """To be used before first measurement after downtime of the device (device disconnected from power source)."""
         self._dev.reset_input_buffer()
         self._dev.reset_output_buffer()
-        
+
         self._write()
         sleep(self._read_delay)
         sleep(self._ta)
@@ -173,39 +184,42 @@ class BoloLine(Detector):
         "s -> (s0, s1), (s2, s3), (s4, s5), ..."
         a = iter(iterable)
         data = []
-        for p in zip(a,a):
-            data.append((p[1]+ p[0]*256)/65536*3.3)
+        for p in zip(a, a):
+            data.append((p[1] + p[0] * 256) / 65536 * 3.3)
         return data
 
     def __init__(
-            self,
-            idVendor="03EB", idProduct="2404",
-            sensor: BoloMsgSensor = BoloMsgSensor.FIRST,
-            samples: BoloMsgSamples = BoloMsgSamples.S100,
-            freq: BoloMsgFreq = BoloMsgFreq.F1,
-            cold_start=False
+        self,
+        idVendor="03EB",
+        idProduct="2404",
+        sensor: BoloMsgSensor = BoloMsgSensor.FIRST,
+        samples: BoloMsgSamples = BoloMsgSamples.S100,
+        freq: BoloMsgFreq = BoloMsgFreq.F1,
+        cold_start=False,
     ) -> None:
-        self._hid = f"{idVendor}:{idProduct}" # hardware id (vendor id : product id)
-        restr = "(?i)" + self._hid 
+        self._hid = f"{idVendor}:{idProduct}"  # hardware id (vendor id : product id)
+        restr = "(?i)" + self._hid
         try:
             self._port = next(list_ports.grep(restr)).name
         except StopIteration as e:
             raise DeviceNotFoundError(msg="Bolometer line not found.")
-        self._read_delay = 0.001 # selected experimentally (longer wait time may be necessary)
+        self._read_delay = (
+            0.001  # selected experimentally (longer wait time may be necessary)
+        )
         self._write_delay = 0.001
         self._dev = serial.Serial(
             port=self._port,
             baudrate=115200,
             bytesize=serial.EIGHTBITS,
-            timeout=0, # NOTE: under test (previously 0.1); currently: non-blocking
+            timeout=0,  # NOTE: under test (previously 0.1); currently: non-blocking
             parity=serial.PARITY_NONE,
             stopbits=serial.STOPBITS_ONE,
-            write_timeout=0.1
+            write_timeout=0.1,
         )
 
         self._samples = BoloMsgSamples.S100
         self._freq = BoloMsgFreq.F1
-        self._ta = self._samples.nsamp / (self._freq.freq*1000)
+        self._ta = self._samples.nsamp / (self._freq.freq * 1000)
 
         # first communication
         self._makemsgparts(sensor=(0).to_bytes(1))
@@ -228,18 +242,18 @@ class BoloLine(Detector):
             raise e
         frame.append(self._read())
         for ans in frame:
-            if len(ans)>0:
+            if len(ans) > 0:
                 self._idstr = ans[0:5]
                 self._sn = int(self._idstr[0])
-                self._prodyear = int(self._idstr[1])+2000
-                senstype = int(self._idstr[2])*100 + int(self._idstr[3])
+                self._prodyear = int(self._idstr[1]) + 2000
+                senstype = int(self._idstr[2]) * 100 + int(self._idstr[3])
                 if senstype == 0:
                     self._senstype = "WIDEBAND"
                 else:
                     self._senstype = f"{senstype}"
-                self._fw = int(self._idstr[4])*0.1
+                self._fw = int(self._idstr[4]) * 0.1
                 break
-        
+
         # finish setup
         self._initialized = True
         self._sensor = sensor
@@ -269,7 +283,6 @@ class BoloLine(Detector):
                 break
         return res
 
-
     def measure(self) -> List[float]:
         """Perform single measurement. Requires additional write and read due to the fact how the detector works.
 
@@ -296,9 +309,9 @@ class BoloLine(Detector):
         # data = self.pairwise(self._read())
         data = self.pairwise(self._trimans(self._read()))
         # all_frames.append(self._trimans(self._read()))
-        
+
         return data
-    
+
     def live_view_read(self) -> List[float]:
         # WARNING: not tested yet
         self._dev.reset_input_buffer()
@@ -314,8 +327,9 @@ class BoloLine(Detector):
 
         return data
 
-    
-    def measure_series(self, n: int, interval: float = None, start_delay: float = -1) -> List[List[float]]:
+    def measure_series(
+        self, n: int, interval: float = None, start_delay: float = -1
+    ) -> List[List[float]]:
         """Measures `n` times (+ additional write/read due to the device properties).
 
         Args:
@@ -335,20 +349,24 @@ class BoloLine(Detector):
         if interval is None:
             interval = self._write_delay
         elif interval < self._write_delay:
-            raise ValueError("interval has to be greater or equal to the sum of _ta and _readDelay")
+            raise ValueError(
+                "interval has to be greater or equal to the sum of _ta and _readDelay"
+            )
 
         if n > 0 and start_delay >= 0:
             self._dev.reset_input_buffer()
             self._dev.reset_output_buffer()
 
-            sleep(start_delay) # don't think we need that high time precision, but FYI when sleep is called with 0 it will release GIL (on Windows at least)
+            sleep(
+                start_delay
+            )  # don't think we need that high time precision, but FYI when sleep is called with 0 it will release GIL (on Windows at least)
 
             try:
                 self._write()
                 sleep(interval)
                 self._read()
 
-                for i in range(n-1):
+                for i in range(n - 1):
                     self._write()
                     sleep(interval)
                     data.append(self._read())
@@ -360,14 +378,17 @@ class BoloLine(Detector):
             sleep(self._write_delay)
             data.append(self._read())
         else:
-            raise ValueError("n has to be greater than 0 and start_delay has to be greater than or equal to 0")
-        
+            raise ValueError(
+                "n has to be greater than 0 and start_delay has to be greater than or equal to 0"
+            )
+
         # retrieve decimal values from frames
         return [self.pairwise(self._trimans(i)) for i in data]
 
 
 class Source(ABC):
     """Abstract class for sources."""
+
     @abstractmethod
     def __init__(self):
         pass
