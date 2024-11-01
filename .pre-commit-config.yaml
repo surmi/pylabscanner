@@ -1,3 +1,4 @@
+default_stages: [pre-push]
 repos:
   - repo: https://github.com/psf/black
     rev: 24.10.0
@@ -17,7 +18,7 @@ repos:
         [
           "--max-line-length=80",
           "--extend-select=B950",
-          "extend-ignore=E203,E501,E701,F401"
+          "--extend-ignore=E203,E501,E701,F401"
         ]
   - repo: local
     hooks:
