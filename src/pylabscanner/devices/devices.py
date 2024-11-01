@@ -201,7 +201,7 @@ class BoloLine(Detector):
         restr = "(?i)" + self._hid
         try:
             self._port = next(list_ports.grep(restr)).name
-        except StopIteration as e:
+        except StopIteration:
             raise DeviceNotFoundError(msg="Bolometer line not found.")
         self._read_delay = (
             0.001  # selected experimentally (longer wait time may be necessary)

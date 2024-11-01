@@ -153,7 +153,7 @@ class LTS(aptdevice_motor.APTDevice_Motor):
         source = EndPoint.HOST
         dest = EndPoint.BAY0
 
-        self._log.debug(f"Requesting info.")
+        self._log.debug("Requesting info.")
         self._loop.call_soon_threadsafe(
             self._write, apt.hw_req_info(source=source, dest=dest)
         )
@@ -200,9 +200,9 @@ class LTS(aptdevice_motor.APTDevice_Motor):
 
         super().home(bay, channel)
         call_delay = 0.15
-        timerHandle = self._loop.call_later(
-            call_delay, self.homed
-        )  # note: different loop
+        # timerHandle = self._loop.call_later(
+        #     call_delay, self.homed
+        # )  # note: different loop
         await asyncio.sleep(call_delay + 0.1)
 
         interval = 0.1
@@ -461,8 +461,8 @@ async def aso_home_devs(
                         name=f"Homing stage with s/n {stage.serial_number}",
                     )
                 )
-        except TimeoutError as e:
-            devs[0]._log.warn(f"Timout during homing")
+        except TimeoutError:
+            devs[0]._log.warn("Timout during homing")
 
 
 async def aso_move_devs(
@@ -503,5 +503,5 @@ async def aso_move_devs(
                     )
                 else:
                     stage._log.debug("Stage already in position.")
-        except TimeoutError as e:
+        except TimeoutError:
             devs[0]._log.warn("Timeout during moving")

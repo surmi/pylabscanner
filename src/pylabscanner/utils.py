@@ -414,7 +414,7 @@ def plotting(
 
         # add label to the file name
         parent = path.parent
-        stem = path.stem + f"_plot"
+        stem = path.stem + "_plot"
         format = "png"
         path = parent / f"{stem}.{format}"
 

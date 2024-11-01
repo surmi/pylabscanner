@@ -549,7 +549,7 @@ def scan(
     click.echo(
         f"Total number of points in the scan: {len(measrngx)*len(measrngy)*len(measrngz)}"
     )
-    click.echo(f"Estimated time of measurement: {floor(sc.ta/60)}m {sc.ta%60:.0f}s")
+    click.echo(f"Estimated time of measurement: {floor(sc.ta/60)}m {sc.ta % 60:.0f}s")
     click.echo("---\n")
 
     if noconfirmation or click.confirm("Do you want to continue?"):
@@ -567,7 +567,7 @@ def scan(
             raise click.Abort
         data = sc.data
         click.echo(
-            f"Actual time of measurement: {floor(sc.ta_act/60)}m {sc.ta_act%60:.0f}s"
+            f"Actual time of measurement: {floor(sc.ta_act/60)}m {sc.ta_act % 60:.0f}s"
         )
         click.echo("\tMeasurement finished")
 
@@ -715,7 +715,7 @@ def plot(
             postprocessing(data, postproc, chop_freq, det_freq.freq * 1000)
             click.echo("\tPostprocessing finished")
 
-            plot_result = plotting(data=data, path=outpath, save=plot_save)
+            plotting(data=data, path=outpath, save=plot_save)
     elif len(files) > 1:
         raise NotImplementedError("Plotting multiple files not implemented yet")
         if postproc is None:

@@ -347,10 +347,10 @@ class ScanRoutine:
         """Build the scan routine."""
         # line scan always starts at min
         start_pos = [range.min() for range in self.ranges]
-        vels = [
-            steps2mm(stage.velparams["max_velocity"], stage.convunits["vel"])
-            for stage in self.stages
-        ]
+        # vels = [
+        #     steps2mm(stage.velparams["max_velocity"], stage.convunits["vel"])
+        #     for stage in self.stages
+        # ]
         t_ru = []
         s_ru = []
         for s in self.stages:
@@ -666,7 +666,7 @@ class ScanRoutine:
                     reverse = not reverse
 
         else:
-            raise NotImplemented("Single line scan not implemented yet")
+            raise NotImplementedError("Single line scan not implemented yet")
 
 
 # LiveView
@@ -765,7 +765,7 @@ class LiveView:
                 fft = np.abs(np.fft.rfft(y))
                 fftx = np.fft.rfftfreq(len(y), dt)
                 # self._log.debug(f"step: {dt}")
-            except Empty as e:
+            except Empty:
                 pass
 
             # plot data
