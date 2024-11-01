@@ -11,7 +11,6 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 from matplotlib.figure import Figure
-from pandas.api.types import is_object_dtype
 from serial import SerialException
 
 from .commands import LineStart, LineType
@@ -106,8 +105,10 @@ def conv_to_steps(
     """Convert required position to microsteps (used by LTS devices).
 
     Args:
-        stages (LTS | list[LTS]): LTS object representing given stage (or whole list of them)
-        pos (int | float | list[int] | list[float]): requested positions for corresponding LTS stages
+        stages (LTS | list[LTS]): LTS object representing given stage (or whole
+            list of them)
+        pos (int | float | list[int] | list[float]): requested positions for
+            corresponding LTS stages
     """
     if type(stages) is not list:
         stages = [stages]
@@ -159,7 +160,8 @@ def parse_detector_settings(
         detfreq (int): sampling frequency
 
     Returns:
-        tuple[BoloMsgSamples, BoloMsgSamples, BoloMsgFreq]: enum objects corresponding to the detector settings
+        tuple[BoloMsgSamples, BoloMsgSamples, BoloMsgFreq]: enum objects
+            corresponding to the detector settings
     """
     # for el in BoloMsgFreq:
     #     if str(el.value[1]) == detfreq:
@@ -242,7 +244,8 @@ def postprocessing(
         det_freq (float,int, optional): sampling frequency of the detector
 
     Raises:
-        ValueError: raised if signal frequency or sampling frequency are not provided (only for 'fft' mode)
+        ValueError: raised if signal frequency or sampling frequency are not
+            provided (only for 'fft' mode)
     """
     # If data is read from file, the type of elements in the 'MEASUREMENT'
     # column will be of string type. Deal with it here.
@@ -294,10 +297,12 @@ def _predict_plot(data: pd.DataFrame, silent=False) -> Tuple[str, List[str]]:
         silent (bool, optional): wheter to raise error on fail. Defaults to False.
 
     Raises:
-        ValueError: raised on failed attempt to predict type of the plot. Only raised if 'silent' is equal to False.
+        ValueError: raised on failed attempt to predict type of the plot. Only
+            raised if 'silent' is equal to False.
 
     Returns:
-        Tuple[str, List[str]]: type of the plot ('2D' or '3D') and order of axis (horizontal and vertical correspondingly).
+        Tuple[str, List[str]]: type of the plot ('2D' or '3D') and order of
+            axis (horizontal and vertical correspondingly).
     """
     ux = data["X"].unique()
     uy = data["Y"].unique()
@@ -348,11 +353,14 @@ def plotting(
     Args:
         data (pd.DataFrame): data.
         path (Path, optional): output path. Defaults to None.
-        save (bool, optional): whether to save the plot instead of displaying it. Defaults to False.
-        show (bool, optional): whether to save the plot instead of displaying it. Defaults to False.
+        save (bool, optional): whether to save the plot instead of displaying
+            it. Defaults to False.
+        show (bool, optional): whether to save the plot instead of displaying
+            it. Defaults to False.
 
     Raises:
-        ValueError: raised when input data frame does not contain columns with processed data.
+        ValueError: raised when input data frame does not contain columns with
+            processed data.
 
     Returns:
         Tuple[Figure, Any]: figure and axes objects with created plot(s).
@@ -459,7 +467,8 @@ def load_data(path: Path) -> tuple[pd.DataFrame, dict[str, Any] | None]:
         NotImplementedError: raised for unhandled extensions.
 
     Returns:
-        tuple[pd.DataFrame, dict[str, Any]|None]: data and metadata for `.h5`; otherwise data and `None`.
+        tuple[pd.DataFrame, dict[str, Any]|None]: data and metadata for `.h5`;
+            otherwise data and `None`.
     """
     if path.suffix == ".h5":
         data = {}
@@ -484,7 +493,7 @@ def load_data(path: Path) -> tuple[pd.DataFrame, dict[str, Any] | None]:
         if "MEASUREMENT" in data.columns:
             measurement_col = data["MEASUREMENT"]
             measurement = []
-            for i, measurement_str in enumerate(measurement_col):
+            for _, measurement_str in enumerate(measurement_col):
                 measurement_str = measurement_str[1:-1]
                 measurement.append(np.fromstring(measurement_str, sep=" "))
             data["MEASUREMENT"] = measurement
@@ -507,7 +516,8 @@ def saving(
         data (pd.DataFrame): data frame with measurements.
         path (Path): path to where the data should be saved.
         metadata (dict | None, optional): metadata to attach to the file.
-        label (str, optional): if provided, will be attached to the file name. Defaults to None.
+        label (str, optional): if provided, will be attached to the file name.
+            Defaults to None.
     """
     if metadata is not None:
         if label is not None:

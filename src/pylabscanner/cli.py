@@ -5,8 +5,8 @@ import logging
 import shutil
 from math import floor
 from pathlib import Path
-from time import sleep, time
-from typing import List, Tuple
+from time import time
+from typing import Tuple
 
 import click
 import pandas as pd
@@ -20,7 +20,6 @@ from .utils import (
     _parse_detector_frequency,
     conv_to_steps,
     init_stages,
-    load_data,
     parse_detector_settings,
     parse_filepath,
     parse_range,
@@ -45,7 +44,8 @@ pass_config = click.make_pass_decorator(Config, ensure=True)
 @click.option(
     "--debug",
     is_flag=True,
-    help="Run commands with logging outputed to 'log.txt' file. The log file will be overwritten!",
+    help="Run commands with logging outputed to 'log.txt' file. The log file "
+    "will be overwritten!",
 )
 @click.option(
     "--config",
@@ -62,16 +62,18 @@ def cli(confobj: Config, debug, config: Path):
     """
     CLI for scanning scripts.
 
-    The application uses serial numbers of Thorlabs stages to identify them and connect.
-    The serial numbers are stored in configuration file named 'config.ini' in the default
-    location. If the configuration file is not present and '--config' option is not
-    provided, the user is asked for the serial numbers. If the '--config' option is
-    used with configuration file already exisitng in the default location, files are
-    compared and if different, exisitng file is replaced by the one provided by the user.
+    The application uses serial numbers of Thorlabs stages to identify them and
+    connect. The serial numbers are stored in configuration file named
+    'config.ini' in the default location. If the configuration file is not
+    present and '--config' option is not provided, the user is asked for the
+    serial numbers. If the '--config' option is used with configuration file
+    already exisitng in the default location, files are compared and if
+    different, exisitng file is replaced by the one provided by the user.
 
     \b
     Currently supported devices:
-    - THORLABS LTS300 and LTS300/C stages (possible use of 3 stages at the same time).
+    - THORLABS LTS300 and LTS300/C stages (possible use of 3 stages at the
+        same time).
     - LUVITERA THZ MINI 4x1 line of wideband bolometers.
     """
     # logging
@@ -158,11 +160,13 @@ def home(config: Config, stageslist):
         stages = init_stages(stageslist=stageslist, stage_no=config.stage_sn)
     except SerialException as e:
         config.logger.error(
-            "Serial connection error on stage initialization before homing operation."
+            "Serial connection error on stage initialization before homing "
+            "operation."
         )
         config.logger.error(e)
         click.echo(
-            "Serial connection error. Run the app with --debug command to see details in the log file."
+            "Serial connection error. Run the app with --debug command to see "
+            "details in the log file."
         )
         raise click.Abort
     except RuntimeError as e:
@@ -171,7 +175,9 @@ def home(config: Config, stageslist):
         )
         config.logger.error(e)
         click.echo(
-            "Runetime error on stage initialization. Verify that stages are connected and powered on.\nRun the app with --debug command to see details in the log file."
+            "Runetime error on stage initialization. Verify that stages are "
+            "connected and powered on.\nRun the app with --debug command to "
+            "see details in the log file."
         )
         raise click.Abort
 
@@ -215,11 +221,13 @@ def moveTo(config: Config, x, y, z):
         stages = init_stages(stageslist=stagesstr, stage_no=config.stage_sn)
     except SerialException as e:
         config.logger.error(
-            "Serial connection error on stage initialization before homing operation."
+            "Serial connection error on stage initialization before homing "
+            "operation."
         )
         config.logger.error(e)
         click.echo(
-            "Serial connection error. Run the app with --debug command to see details in the log file."
+            "Serial connection error. Run the app with --debug command to see "
+            "details in the log file."
         )
         raise click.Abort
     except RuntimeError as e:
@@ -228,7 +236,9 @@ def moveTo(config: Config, x, y, z):
         )
         config.logger.error(e)
         click.echo(
-            "Runetime error on stage initialization. Verify that stages are connected and powered on.\nRun the app with --debug command to see details in the log file."
+            "Runetime error on stage initialization. Verify that stages are "
+            "connected and powered on.\nRun the app with --debug command to "
+            "see details in the log file."
         )
         raise click.Abort
     pos = conv_to_steps(stages, pos)
@@ -242,7 +252,8 @@ def moveTo(config: Config, x, y, z):
         config.logger.error("Error while running asynchronous movement to position")
         config.logger.error(er)
         click.echo(
-            "Error while running asynchronous movement to position. Run in debug mode to see more details."
+            "Error while running asynchronous movement to position. Run in "
+            "debug mode to see more details."
         )
         raise click.Abort
     te_home1 = time()
@@ -360,33 +371,36 @@ def scan(
     yet implemented!
 
     Detector has three settings: sensor selection '-dn', number of samples per
-    measurement '-ds', and sampling frequency '-df'. Number of samples and sampling
-    frequency influences time of single measurement. Note that this influences how
-    much time the stages will wait at given position (for 'ptbypt' mode) or how
-    large distance will be swept over during single measurement (for 'flyby' mode).
+    measurement '-ds', and sampling frequency '-df'. Number of samples and
+    sampling frequency influences time of single measurement. Note that this
+    influences how much time the stages will wait at given position (for
+    'ptbypt' mode) or how large distance will be swept over during single
+    measurement (for 'flyby' mode).
 
     Two scanning modes are available: 'flyby' and 'ptbypt'.
     'flyby' performs measurements during sweeping motion along one of the axis.
-    'ptbypt' moves all stages to desired position, performs measurement, and moves
-    to the next planned measurement point.
+    'ptbypt' moves all stages to desired position, performs measurement, and
+    moves to the next planned measurement point.
 
-    This command provides also two options ('-s') on which side new line will begin.
-    'snake' will force beginning of next lines to alternate (creating snake-like pattern).
-    When 'cr' is selected after a line is finished stages will come back to
-    the starting position (like a carriage returning in a typewriter to the beginning).
+    This command provides also two options ('-s') on which side new line will
+    begin. 'snake' will force beginning of next lines to alternate (creating
+    snake-like pattern). When 'cr' is selected after a line is finished stages
+    will come back to the starting position (like a carriage returning in a
+    typewriter to the beginning).
 
-    For scanning ranges (options '-x', '-y' and '-z') provide either 1 or 3 numbers.
-    Single number is assumed to be a single position to which given stage will move.
-    If you with to provide the whole range, you need to pass 3 numbers separated
-    with ':' (colon). The order in the range: beginning:end:number_of-points_to_scan.
-    All values passed as ranges are assumed to be in mm.
+    For scanning ranges (options '-x', '-y' and '-z') provide either 1 or 3
+    numbers. Single number is assumed to be a single position to which given
+    stage will move. If you with to provide the whole range, you need to pass 3
+    numbers separated with ':' (colon). The order in the range:
+    beginning:end:number_of-points_to_scan. All values passed as ranges are
+    assumed to be in mm.
 
-    File name or whole valid path (may be relative) with file name can be provided
-    via '-o' option. Note that file is open in w+ mode (it will be overwritten if
-    exists). If '-ext' option is provided the '-ext' value will be appended to the value
-    of '-o' option as extension. Without '-ext' option and with no extension in '-o'
-    value default extension is '.txt'. Providing '-ts' flag appends timestamp to
-    the file name.
+    File name or whole valid path (may be relative) with file name can be
+    provided via '-o' option. Note that file is open in w+ mode (it will be
+    overwritten if exists). If '-ext' option is provided the '-ext' value
+    will be appended to the value of '-o' option as extension. Without '-ext'
+    option and with no extension in '-o' value default extension is '.txt'.
+    Providing '-ts' flag appends timestamp to the file name.
 
     The result of measurement is a series of samples per single scanning point
     (number of samples correspond to '-ds' value). Data can be additionally
@@ -472,11 +486,13 @@ def scan(
         stages = init_stages(stageslist=stagesstr, stage_no=config.stage_sn)
     except SerialException as e:
         config.logger.error(
-            "Serial connection error on stage initialization before homing operation."
+            "Serial connection error on stage initialization before homing "
+            "operation."
         )
         config.logger.error(e)
         click.echo(
-            "Serial connection error. Run the app with --debug command to see details in the log file."
+            "Serial connection error. Run the app with --debug command to see "
+            "details in the log file."
         )
         raise click.Abort
     except RuntimeError as e:
@@ -485,13 +501,15 @@ def scan(
         )
         config.logger.error(e)
         click.echo(
-            "Runetime error on stage initialization. Verify that stages are connected and powered on.\nRun the app with --debug command to see details in the log file."
+            "Runetime error on stage initialization. Verify that stages are "
+            "connected and powered on.\nRun the app with --debug command to "
+            "see details in the log file."
         )
         raise click.Abort
     try:
         bl = BoloLine(sensor=det_sens, samples=det_samp, freq=det_freq, cold_start=True)
     except DeviceNotFoundError as e:
-        config.logger.error("Bolometer line not detected. Please check connection!")
+        config.logger.error("Bolometer line not detected. Please check " "connection!")
         config.logger.error(e)
         click.echo("Bolometer line not detected. Please check connection!")
         raise click.Abort
@@ -538,16 +556,20 @@ def scan(
     click.echo("---")
     click.echo("Ranges to scan:")
     click.echo(
-        f"\tx: {x if x is not None else 0} [{len(measrngx) if measrngx is not None else 0} point(s) per line]"
+        f"\tx: {x if x is not None else 0} "
+        f"[{len(measrngx) if measrngx is not None else 0} point(s) per line]"
     )
     click.echo(
-        f"\ty: {y if y is not None else 0} [{len(measrngy) if measrngy is not None else 0} point(s) per line]"
+        f"\ty: {y if y is not None else 0} "
+        f"[{len(measrngy) if measrngy is not None else 0} point(s) per line]"
     )
     click.echo(
-        f"\tz: {z if z is not None else 0} [{len(measrngz) if measrngz is not None else 0} point(s) per line]"
+        f"\tz: {z if z is not None else 0} "
+        f"[{len(measrngz) if measrngz is not None else 0} point(s) per line]"
     )
     click.echo(
-        f"Total number of points in the scan: {len(measrngx)*len(measrngy)*len(measrngz)}"
+        "Total number of points in the scan: "
+        f"{len(measrngx)*len(measrngy)*len(measrngz)}"
     )
     click.echo(f"Estimated time of measurement: {floor(sc.ta/60)}m {sc.ta % 60:.0f}s")
     click.echo("---\n")
@@ -567,7 +589,8 @@ def scan(
             raise click.Abort
         data = sc.data
         click.echo(
-            f"Actual time of measurement: {floor(sc.ta_act/60)}m {sc.ta_act % 60:.0f}s"
+            f"Actual time of measurement: {floor(sc.ta_act/60)}m "
+            f"{sc.ta_act % 60:.0f}s"
         )
         click.echo("\tMeasurement finished")
 
@@ -637,19 +660,19 @@ def plot(
     """
     Plots data from selected FILES.
 
-    If single file is provided, plots all processed data from given file unless mode is
-    selected with '-post' option.
+    If single file is provided, plots all processed data from given file unless
+    mode is selected with '-post' option.
 
-    For multiple files '-post' option becomes necessary. In this case multiple files are
-    displayed one next to another.
+    For multiple files '-post' option becomes necessary. In this case multiple
+    files are displayed one next to another.
 
-    If '-save' option is used and file with corresponding name already exists, it will
-    be replaced. When '-save' option is used plot is not displayed.
+    If '-save' option is used and file with corresponding name already exists,
+    it will be replaced. When '-save' option is used plot is not displayed.
 
-    The program will attempt to obtain metadata about the measurement from the file.
-    If user will provide necessary parameters as one of the options those will be used.
-    If necessary parameter will not be present as an option or in the metadata user will
-    be prompted for additional information.
+    The program will attempt to obtain metadata about the measurement from the
+    file. If user will provide necessary parameters as one of the options
+    those will be used. If necessary parameter will not be present as an option
+    or in the metadata user will be prompted for additional information.
 
     This command is not fully implemented yet.
     """
@@ -678,7 +701,9 @@ def plot(
                 )
                 config.logger.error(e)
                 click.echo(
-                    "No postprocessed data read from file. Make sure you selected right file or first perform postprocessing on the data (-post option)."
+                    "No postprocessed data read from file. Make sure you "
+                    "selected right file or first perform postprocessing on "
+                    "the data (-post option)."
                 )
                 raise click.Abort
         else:
@@ -735,11 +760,13 @@ def getPosition(config: Config):
         stages = init_stages(stageslist="ALL", stage_no=config.stage_sn)
     except SerialException as e:
         config.logger.error(
-            "Serial connection error on stage initialization before homing operation."
+            "Serial connection error on stage initialization before homing "
+            "operation."
         )
         config.logger.error(e)
         click.echo(
-            "Serial connection error. Run the app with --debug command to see details in the log file."
+            "Serial connection error. Run the app with --debug command to see "
+            "details in the log file."
         )
         raise click.Abort
     except RuntimeError as e:
@@ -748,7 +775,9 @@ def getPosition(config: Config):
         )
         config.logger.error(e)
         click.echo(
-            "Runetime error on stage initialization. Verify that stages are connected and powered on.\nRun the app with --debug command to see details in the log file."
+            "Runetime error on stage initialization. Verify that stages are "
+            "connected and powered on.\nRun the app with --debug command to "
+            "see details in the log file."
         )
         raise click.Abort
     click.echo("\tDevices initialized")

@@ -1,4 +1,3 @@
-import asyncio
 from abc import ABC, abstractmethod
 from enum import Enum
 from time import sleep
@@ -93,7 +92,8 @@ class BoloLine(Detector):
     """
 
     def get_ta(self) -> float:
-        """Total acqusition time (between write to the device and read from the device) in seconds"""
+        """Total acqusition time (between write to the device and read from
+        the device) in seconds"""
         return self._ta + self._read_delay
 
     def get_sensor(self) -> str:
@@ -126,7 +126,8 @@ class BoloLine(Detector):
         self._makemsg()
 
     def _recalculate_ta(self) -> None:
-        """Recalculate time of acquisition after changing number of samples or frequency."""
+        """Recalculate time of acquisition after changing number of samples or
+        frequency."""
         self._ta = self._samples.nsamp / (self._freq.freq * 1000)
 
     def _write(self) -> None:
@@ -154,14 +155,16 @@ class BoloLine(Detector):
         self._msg = self._sensor.value + self._samples.msg + self._freq.msg
 
     def _makemsgparts(self, sensor=None, samples=None, frequency=None) -> None:
-        """Set message send on every write to the detector based on parameters (if provided)."""
+        """Set message send on every write to the detector based on parameters
+        (if provided)."""
         sensor = self._sensor.value if sensor is None else sensor
         samples = self._samples.msg if samples is None else samples
         frequency = self._freq.msg if frequency is None else frequency
         self._msg = sensor + samples + frequency
 
     def _cold_start(self) -> None:
-        """To be used before first measurement after downtime of the device (device disconnected from power source)."""
+        """To be used before first measurement after downtime of the device
+        (device disconnected from power source)."""
         self._dev.reset_input_buffer()
         self._dev.reset_output_buffer()
 
@@ -268,13 +271,21 @@ class BoloLine(Detector):
             self._cold_start()
 
     def __str__(self):
-        return f"Luvitera Mini THz Sensor, 4 pixel array with {self._senstype} sensor type."
+        return (
+            f"Luvitera Mini THz Sensor, 4 pixel array with {self._senstype} "
+            f"sensor type."
+        )
 
     def __repr__(self):
-        return f"Luvitera Mini THz Sensor, 4 pixel array with {self._senstype} sensor type.\n Sensor details:\n -year of production: {self._prodyear}\n -S/N: {self._sn}\n -FW: {self._fw}"
+        return (
+            f"Luvitera Mini THz Sensor, 4 pixel array with {self._senstype} "
+            "sensor type.\n Sensor details:\n -year of production: "
+            f"{self._prodyear}\n -S/N: {self._sn}\n -FW: {self._fw}"
+        )
 
     def _trimans(self, ans) -> bytes:
-        """Removes filler bytes (string that is spammed by the detector equal to `self._idstr`) from detector's answer."""
+        """Removes filler bytes (string that is spammed by the detector equal
+        to `self._idstr`) from detector's answer."""
         divided = ans.split(self._idstr)
         res = None
         for b in divided:
@@ -284,7 +295,8 @@ class BoloLine(Detector):
         return res
 
     def measure(self) -> List[float]:
-        """Perform single measurement. Requires additional write and read due to the fact how the detector works.
+        """Perform single measurement. Requires additional write and read due
+        to the fact how the detector works.
 
         Raises:
             serial_timeout_exception: exception raised on timeout while writing
@@ -334,8 +346,10 @@ class BoloLine(Detector):
 
         Args:
             n (int): number of measurements to take. Has to be >= 1.
-            interval (float, optional): Time between each measurement in seconds. Defaults to None.
-            start_delay (float, optional): Time delaying the first measurement in seconds. Defaults to 0.
+            interval (float, optional): Time between each measurement in
+                seconds. Defaults to None.
+            start_delay (float, optional): Time delaying the first measurement
+                in seconds. Defaults to 0.
 
         Raises:
             ValueError: thrown when provided parameters are outside of limits.
@@ -359,14 +373,15 @@ class BoloLine(Detector):
 
             sleep(
                 start_delay
-            )  # don't think we need that high time precision, but FYI when sleep is called with 0 it will release GIL (on Windows at least)
+            )  # don't think we need that high time precision, but FYI when
+            # sleep is called with 0 it will release GIL (on Windows at least)
 
             try:
                 self._write()
                 sleep(interval)
                 self._read()
 
-                for i in range(n - 1):
+                for _ in range(n - 1):
                     self._write()
                     sleep(interval)
                     data.append(self._read())
@@ -379,7 +394,8 @@ class BoloLine(Detector):
             data.append(self._read())
         else:
             raise ValueError(
-                "n has to be greater than 0 and start_delay has to be greater than or equal to 0"
+                "n has to be greater than 0 and start_delay has to be greater "
+                "than or equal to 0"
             )
 
         # retrieve decimal values from frames

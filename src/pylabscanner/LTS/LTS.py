@@ -162,7 +162,8 @@ class LTS(aptdevice_motor.APTDevice_Motor):
         """Schedule `close()` method on the device.
 
         Args:
-            wait (int, optional): time to wait after closing (in seconds). Defaults to 1.
+            wait (int, optional): time to wait after closing (in seconds).
+                Defaults to 1.
         """
         self._loop.call_soon_threadsafe(self.close)
         await asyncio.sleep(wait)
@@ -172,7 +173,8 @@ class LTS(aptdevice_motor.APTDevice_Motor):
         Recomended to be used within `asyncio.wait_for` to add timeout.
 
         Args:
-            interval (float, optional): interval in which to test wheather stage is homed. Defaults to 0.1.
+            interval (float, optional): interval in which to test wheather
+                stage is homed. Defaults to 0.1.
         """
         while not self.status["homed"]:
             await asyncio.sleep(interval)
@@ -182,7 +184,8 @@ class LTS(aptdevice_motor.APTDevice_Motor):
         Recomended to be used within `asyncio.wait_for` to add timeout.
 
         Args:
-            interval (float, optional): interval in which to test wheather motion is complited. Defaults to 0.1.
+            interval (float, optional): interval in which to test
+                wheather motion is complited. Defaults to 0.1.
         """
         while not self.status["move_completed"]:
             await asyncio.sleep(interval)
@@ -192,7 +195,8 @@ class LTS(aptdevice_motor.APTDevice_Motor):
         Recomended to be used within `asyncio.wait_for` with timeout.
 
         Args:
-            waitfinished (bool, optional): if `True` waits for the motion to finish. Defaults to `True`.
+            waitfinished (bool, optional): if `True` waits for the motion to
+                finish. Defaults to `True`.
         """
         # Default for LTS
         bay = 0
@@ -224,15 +228,20 @@ class LTS(aptdevice_motor.APTDevice_Motor):
     async def aso_move_absolute(
         self, position: int | float, waitfinished: bool = True
     ) -> None:
-        """Move a stage (absolute move command) with built in waiting for the action to finish.
-        Recomended to be used within `asyncio.wait_for` with timeout.
+        """Move a stage (absolute move command) with built in waiting for the
+        action to finish.
+
+        Recomended to be used within `asyncio.wait_for` with
+        timeout.
 
         Args:
             position (int | float): absolute position to move to.
-            waitfinished (bool, optional): if `True` waits for the motion to finish. Defaults to `True`.
+            waitfinished (bool, optional): if `True` waits for the motion to
+                finish. Defaults to `True`.
 
         Raises:
-            ValueError: if the required position is out of physical limits of the stage.
+            ValueError: if the required position is out of physical limits of
+                the stage.
         """
         # Default for LTS
         bay = 0
@@ -289,7 +298,8 @@ class LTS(aptdevice_motor.APTDevice_Motor):
         channel = 0
 
         self._log.debug(
-            f"Homed (homing with confirmation) [bay={self.bays[bay]:#x}, channel={self.channels[channel]}]."
+            f"Homed (homing with confirmation) [bay={self.bays[bay]:#x}, "
+            f"channel={self.channels[channel]}]."
         )
         self._loop.call_soon_threadsafe(
             self._write,
@@ -301,13 +311,15 @@ class LTS(aptdevice_motor.APTDevice_Motor):
         )
 
     def move_absolute(self, position: int | float) -> None:
-        """Synchronous method for moving a stage (absolute move command) without waiting for the action to finish.
+        """Synchronous method for moving a stage (absolute move command)
+        without waiting for the action to finish.
 
         Args:
             position (int | float): absolute position to move to.
 
         Raises:
-            ValueError: if the required position is out of physical limits of the stage.
+            ValueError: if the required position is out of physical limits of
+                the stage.
         """
         # Default for LTS
         bay = 0
@@ -318,7 +330,8 @@ class LTS(aptdevice_motor.APTDevice_Motor):
             or position > self.physiclalimsmu["maxpos"]
         ):
             raise ValueError(
-                "Move absolute: required position out of physical limits of the stage."
+                "Move absolute: required position out of physical limits of"
+                " the stage."
             )
 
         super().move_absolute(position=position, now=True, bay=bay, channel=channel)
@@ -359,17 +372,21 @@ class LTSC(LTS):
             swap_limit_switches=swap_limit_switches,
             bays=(EndPoint.BAY0,),
         )
-        # Currently LTSxC (replacement for older LTSx) reports at `EndPoint.BAY0` (LTSx reported on `EndPoint.USB`).
+        # Currently LTSxC (replacement for older LTSx) reports at `EndPoint.BAY0`
+        # (LTSx reported on `EndPoint.USB`).
 
     def __str__(self) -> str:
         return f"LTSC ({self.serial_number})"
 
     async def aso_home(self, waitfinished=True) -> None:
-        """Asynchronous method for homing a stage with built in waiting for the action to finish.
+        """Asynchronous method for homing a stage with built in waiting for the
+        action to finish.
+
         Recomended to be used within `asyncio.wait_for` with timeout.
 
         Args:
-            waitfinished (bool, optional): if `True` waits for the motion to finish. Defaults to `True`.
+            waitfinished (bool, optional): if `True` waits for the motion to
+                finish. Defaults to `True`.
         """
         # Default for LTS
         bay = 0
@@ -398,12 +415,15 @@ class LTSC(LTS):
 
 
 def mot_move_homed(dest: int, source: int, chan_ident: int) -> bytes:
-    """Generate `mot_move_homed` message. Arguments values according to "Thorlabs Motion Controllers Host-Controller Communications Protocol", p34-36, issue 37, 22 May 2023.
+    """Generate `mot_move_homed` message. Arguments values according to
+    "Thorlabs Motion Controllers Host-Controller Communications Protocol",
+    p34-36, issue 37, 22 May 2023.
 
     Args:
         dest (int): destination of message.
         source (int): source of message.
-        chan_ident (int): channel. Applicable if slot/bay unit. For single channel devices check the protocol.
+        chan_ident (int): channel. Applicable if slot/bay unit. For single
+            channel devices check the protocol.
 
     Returns:
         bytes: prepared message.
@@ -412,12 +432,15 @@ def mot_move_homed(dest: int, source: int, chan_ident: int) -> bytes:
 
 
 def mot_req_statusbits(dest: int, source: int, chan_ident: int) -> bytes:
-    """Generate `mot_req_statusbits` message. Arguments values according to "Thorlabs Motion Controllers Host-Controller Communications Protocol", p34-36, issue 37, 22 May 2023.
+    """Generate `mot_req_statusbits` message. Arguments values according to
+    "Thorlabs Motion Controllers Host-Controller Communications Protocol",
+    p34-36, issue 37, 22 May 2023.
 
     Args:
         dest (int): destination of message.
         source (int): source of message.
-        chan_ident (int): channel. Applicable if slot/bay unit. For single channel devices check the protocol.
+        chan_ident (int): channel. Applicable if slot/bay unit. For single
+            channel devices check the protocol.
 
     Returns:
         bytes: _description_
@@ -441,12 +464,17 @@ async def aso_close(devs: LTS | list[LTS]) -> None:
 async def aso_home_devs(
     devs: LTS | list[LTS], timeout: int | float = 61, waitfinished: bool = True
 ) -> None:
-    """Asynchronously begin `home` operation on all provided stages and wait for finish. All calls are done with timeout of 61 seconds.
+    """Asynchronously begin `home` operation on all provided stages and wait
+    for finish. All calls are done with timeout of 61 seconds.
 
     Args:
-        devs (LTS | list[LTS]): single instance or list of instances of LTS objects.
-        timeout (int | float, optional): timeout for movement to finish in seconds. Recommended value ca. 60 (assuming LTS300 and homing speed 5mm/s it should cover the whole range). Defaults to 61.
-        waitfinished (bool, optional): wait for the action to finish. Defaults to True.
+        devs (LTS | list[LTS]): single instance or list of instances of LTS
+            objects.
+        timeout (int | float, optional): timeout for movement to finish in
+            seconds. Recommended value ca. 60 (assuming LTS300 and homing speed
+            5mm/s it should cover the whole range). Defaults to 61.
+        waitfinished (bool, optional): wait for the action to finish. Defaults
+            to True.
     """
     if type(devs) is not list:
         devs = [devs]
@@ -471,14 +499,21 @@ async def aso_move_devs(
     timeout: int | float = 61,
     waitfinished: bool = True,
 ) -> None:
-    """Asynchronously begin `absolute move` operation on all provided stages and wait for finish. All calls are done with timeout of 61 seconds.
-    Recommended for moving into specific position (not for scanning while moving).
+    """Asynchronously begin `absolute move` operation on all provided stages and
+    wait for finish. All calls are done with timeout of 61 seconds.
+
+    Recommended for moving into specific position (not for scanning while
+    moving).
 
     Args:
-        devs (LTS | list[LTS]): single instance or list of instances of LTS objects.
+        devs (LTS | list[LTS]): single instance or list of instances of LTS
+            objects.
         pos (int | float): requested position in microsteps.
-        timeout (int | float, optional): timeout for movement to finish in seconds. Recommended value ca. 60 (assuming LTS300 and homing speed 5mm/s it should cover the whole range). Defaults to 61.
-        waitfinished (bool, optional): wait for the action to finish. Defaults to True.
+        timeout (int | float, optional): timeout for movement to finish in
+            seconds. Recommended value ca. 60 (assuming LTS300 and homing speed
+            5mm/s it should cover the whole range). Defaults to 61.
+        waitfinished (bool, optional): wait for the action to finish. Defaults
+            to True.
     """
     if type(devs) is not list:
         devs = [devs]
@@ -498,7 +533,9 @@ async def aso_move_devs(
                                 stage.aso_move_absolute(position_to_go, waitfinished),
                                 timeout=timeout,
                             ),
-                            name=f"Moving stage {stage.serial_number} to position {steps2mm(position_to_go, stage.convunits["pos"])}",
+                            name=f"Moving stage {stage.serial_number} to "
+                            f"position "
+                            f"{steps2mm(position_to_go, stage.convunits["pos"])}",
                         )
                     )
                 else:

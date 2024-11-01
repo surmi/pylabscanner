@@ -13,19 +13,11 @@ from typing import List, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from numpy import linspace, ndarray, sqrt
-from thorlabs_apt_device.devices.aptdevice_motor import APTDevice_Motor
+from numpy import ndarray, sqrt
 from tqdm import tqdm
 
-from .devices import (
-    BoloLine,
-    BoloMsgFreq,
-    BoloMsgSamples,
-    BoloMsgSensor,
-    Detector,
-    Source,
-)
-from .LTS import LTS, LTSC, aso_home_devs, aso_move_devs, mm2steps, steps2mm
+from .devices import BoloLine, Detector, Source
+from .LTS import LTS, aso_home_devs, aso_move_devs, mm2steps, steps2mm
 
 
 # Message parts for the bolometer
@@ -158,9 +150,12 @@ class ActionFlyBy(Action):
 
     def __str__(self) -> str:
         if self.reverse:
-            return f"Fly-by scan on stage {self.stage} over range {self.measrng} (reversed)"
+            return (
+                f"Fly-by scan on stage {self.stage} over range "
+                f"{self.measrng} (reversed)"
+            )
         else:
-            return f"Fly-by scan on stage {self.stage} over range {self.measrng}"
+            return f"Fly-by scan on stage {self.stage} over range " f"{self.measrng}"
 
     def run(self):
         # start movement without waiting
@@ -222,9 +217,15 @@ class ActionPtByPt(Action):
 
     def __str__(self):
         if self.reverse:
-            return f"Point-by-point line scan on stage {self.stage} over range {self.measrng} (reversed)"
+            return (
+                f"Point-by-point line scan on stage {self.stage} over range "
+                f"{self.measrng} (reversed)"
+            )
         else:
-            return f"Point-by-point line scan on stage {self.stage} over range {self.measrng}"
+            return (
+                f"Point-by-point line scan on stage {self.stage} over range "
+                f"{self.measrng}"
+            )
 
     def run(self):
         # move to next point and measure
@@ -264,10 +265,12 @@ class ActionPtByPt(Action):
 
 
 def calc_startposmod(stage: LTS) -> Tuple[float, float]:
-    """Calculate modification of position due to the stage needing to ramp up to constant velocity.
+    """Calculate modification of position due to the stage needing to ramp up
+    to constant velocity.
 
     Args:
-        stage (APTDevice_Motor): stage object from which the velocity parameters are taken.
+        stage (APTDevice_Motor): stage object from which the velocity
+            parameters are taken.
 
     Returns:
         tuple(float, float): (ramp up distance, ramp up time).
@@ -284,7 +287,8 @@ def calc_startposmod(stage: LTS) -> Tuple[float, float]:
 
 
 def calc_movetime(stage: LTS, dist: float) -> float:
-    """Calculate time of movement based on the distance and parameters of the stage.
+    """Calculate time of movement based on the distance and parameters of the
+    stage.
 
     Args:
         stage (LTS): stage under control
@@ -306,7 +310,8 @@ def calc_movetime(stage: LTS, dist: float) -> float:
 class ScanRoutine:
     """Routine for scanning with stages.
 
-    Call `build()` before running (`run()` method) the routine to build list of steps to perform.
+    Call `build()` before running (`run()` method) the routine to build list
+    of steps to perform.
     """
 
     # TODO: validate fly-by range has at least 2 points
@@ -317,7 +322,7 @@ class ScanRoutine:
         detector: Detector,
         source: Source,
         ranges: List[ndarray],
-        order: List[AxisOrder] = [AxisOrder.X, AxisOrder.Y, AxisOrder.Z],
+        order: tuple[AxisOrder] = (AxisOrder.X, AxisOrder.Y, AxisOrder.Z),
         line_type: LineType = LineType.FLYBY,
         line_start: LineStart = LineStart.SNAKE,
         fin_home: bool = True,
@@ -561,7 +566,8 @@ class ScanRoutine:
             #     raise NotImplemented("Single line scan not implemented yet")
         else:
             raise ValueError(
-                f"Expected line_type of value {LineType.FLYBY} or {LineType.PTBYPT}. Got {self.line_type}"
+                f"Expected line_type of value {LineType.FLYBY} or "
+                f"{LineType.PTBYPT}. Got {self.line_type}"
             )
 
         if self.fin_home:
@@ -718,7 +724,7 @@ class LiveView:
 
     def _interrupt_hook(self, args):
         self._log.error(
-            f"Thread {args.thread.getName()} failed with exception {args.exc_value}"
+            f"Thread {args.thread.getName()} failed with exception " f"{args.exc_value}"
         )
         self._log.error(f"Traceback{traceback.print_tb(args.exc_traceback)}")
         self._log.error("Shutting down")
