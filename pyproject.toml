@@ -10,14 +10,27 @@ authors = [
 description = "CLI tool for scanning jobs in a laboratory with Thorlabs LTS stages"
 dependencies = [
     "click",
-    "pyserial",
-    "thorlabs-apt-device",
+    "h5py",
+    "matplotlib",
     "numpy",
-    "pandas"
+    "pandas",
+    "pyserial",
+    "pytest",
+    "tables",
+    "thorlabs-apt-device",
+    "tqdm"
 ]
 readme = "README.md"
+requires-python = "3.12"
 license = {text = "GPL v3"}
 dynamic = ["version"]
+
+[project.optional-dependencies]
+dev = [
+    "ipykernel",
+    "isort",
+    "pre-commit",
+]
 
 [project.scripts]
 labscanner = "pylabscanner:cli"

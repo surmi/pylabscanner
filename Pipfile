@@ -21,6 +21,8 @@ tqdm = "*"
 
 [dev-packages]
 ipykernel = "*"
+isort = "*"
+pre-commit = "*"
 
 [requires]
 python_version = "3.12"
