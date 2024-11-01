@@ -20,6 +20,8 @@ thorlabs-apt-device = "*"
 tqdm = "*"
 
 [dev-packages]
+flake8 = "*"
+flake8-bugbear = "*"
 ipykernel = "*"
 isort = "*"
 pre-commit = "*"
