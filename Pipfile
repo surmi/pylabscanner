@@ -25,6 +25,7 @@ flake8-bugbear = "*"
 ipykernel = "*"
 isort = "*"
 pre-commit = "*"
+pylint = "*"
 
 [requires]
 python_version = "3.12"

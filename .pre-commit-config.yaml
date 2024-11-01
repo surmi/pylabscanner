@@ -12,3 +12,24 @@ repos:
     rev: 7.1.0
     hooks:
     - id: flake8
+      additional_dependencies: [flake8-bugbear]
+      args:
+        [
+          "--max-line-length=80",
+          "--extend-select=B950",
+          "extend-ignore=E203,E501,E701,F401"
+        ]
+  - repo: local
+    hooks:
+    - id: pylint
+      name: pylint
+      entry: pylint
+      language: system
+      types: [python]
+      require_serial: true
+      args:
+        [
+          "-rn", # Only display messages
+          "-sn", # Don't display the score
+          "--max-line-length=88"
+        ]
