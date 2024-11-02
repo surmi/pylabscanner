@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 import asyncio
 import logging
-import math
 import threading
 import traceback
 from abc import ABC, abstractmethod
@@ -13,11 +12,11 @@ from typing import List, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from numpy import ndarray, sqrt
+from numpy import ndarray
 from tqdm import tqdm
 
-from .devices import BoloLine, Detector, Source
-from .LTS import LTS, aso_home_devs, aso_move_devs, mm2steps, steps2mm
+from .devices import BoloLine, Detector, Source, calc_startposmod
+from .devices.LTS import LTS, aso_home_devs, aso_move_devs, mm2steps, steps2mm
 
 
 # Message parts for the bolometer
@@ -264,26 +263,26 @@ class ActionPtByPt(Action):
         return self.ta
 
 
-def calc_startposmod(stage: LTS) -> Tuple[float, float]:
-    """Calculate modification of position due to the stage needing to ramp up
-    to constant velocity.
+# def calc_startposmod(stage: LTS) -> Tuple[float, float]:
+#     """Calculate modification of position due to the stage needing to ramp up
+#     to constant velocity.
 
-    Args:
-        stage (APTDevice_Motor): stage object from which the velocity
-            parameters are taken.
+#     Args:
+#         stage (APTDevice_Motor): stage object from which the velocity
+#             parameters are taken.
 
-    Returns:
-        tuple(float, float): (ramp up distance, ramp up time).
-    """
-    vel_params = stage.velparams
-    max_velocity = steps2mm(vel_params["max_velocity"], stage.convunits["vel"])
-    acceleration = steps2mm(vel_params["acceleration"], stage.convunits["acc"])
+#     Returns:
+#         tuple(float, float): (ramp up distance, ramp up time).
+#     """
+#     vel_params = stage.velparams
+#     max_velocity = steps2mm(vel_params["max_velocity"], stage.convunits["vel"])
+#     acceleration = steps2mm(vel_params["acceleration"], stage.convunits["acc"])
 
-    t_ru = max_velocity / acceleration
-    s_ru = 1 / 2 * float(str(acceleration)) * float(str(t_ru)) ** 2
-    s_ru = math.ceil(s_ru)
+#     t_ru = max_velocity / acceleration
+#     s_ru = 1 / 2 * float(str(acceleration)) * float(str(t_ru)) ** 2
+#     s_ru = math.ceil(s_ru)
 
-    return s_ru, t_ru
+#     return s_ru, t_ru
 
 
 def calc_movetime(stage: LTS, dist: float) -> float:
@@ -302,7 +301,7 @@ def calc_movetime(stage: LTS, dist: float) -> float:
     acceleration = steps2mm(stage.velparams["acceleration"], stage.convunits["acc"])
 
     if dist <= 2 * s_ru:
-        return 2 * sqrt(dist / acceleration)
+        return 2 * np.sqrt(dist / acceleration)
     else:
         return 2 * t_ru * (dist - 2 * s_ru) / max_velocity
 

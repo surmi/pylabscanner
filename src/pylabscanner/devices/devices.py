@@ -1,10 +1,15 @@
+import math
 from abc import ABC, abstractmethod
 from enum import Enum
 from time import sleep
 from typing import List
 
+import numpy as np
 import serial
 from serial.tools import list_ports
+
+from .LTS import LTS, LTSC
+from .utility import mm2steps, steps2mm
 
 
 class BoloMsgSensor(Enum):
@@ -66,23 +71,19 @@ class Detector(ABC):
     """Abstract class for detectors."""
 
     @abstractmethod
-    def __init__(self):
-        pass
-
-    @abstractmethod
     def measure(self):
         """Measure single value."""
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def measure_series(self):
         """Make series of measurements."""
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def get_ta(self):
         """Time of acquisition in seconds."""
-        pass
+        raise NotImplementedError
 
 
 class BoloLine(Detector):
@@ -407,4 +408,136 @@ class Source(ABC):
 
     @abstractmethod
     def __init__(self):
-        pass
+        raise NotImplementedError
+
+
+class MotorizedStage(ABC):
+    """Abstract class for motorized stages."""
+
+    @abstractmethod
+    def get_current_position(self):
+        """Current position of the platform."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def initialize(self):
+        """Initialize the stage."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_arrival_time(self, distance: float):
+        """Calculate time it takes for the platform to cover specified
+        distance."""
+        raise NotImplementedError
+
+    @abstractmethod
+    async def home(self):
+        """Home the stage asynchronously."""
+        raise NotImplementedError
+
+    @abstractmethod
+    async def go_to(self, destination: float):
+        """Go to desired position asynchronously."""
+        raise NotImplementedError
+
+
+class LTSStage(MotorizedStage):
+    """Abstraction for LTS stages"""
+
+    # TODO: make docstrings
+    # TODO: test with hardware
+    # TODO: add logging?
+
+    def __init__(self, serial_number: str, rev: str = "LTS"):
+        self.serial_number = serial_number
+        self.rev = rev
+        self.initialize()
+
+    def get_current_position(self):
+        """Current position of the platform in mm."""
+        return steps2mm(self.stage.status["position"], self.stage.convunits["pos"])
+
+    def initialize(self):
+        """Initialize the stage."""
+        if self.rev == "LTS":
+            self.stage = LTS(serial_number=self.serial_number, home=False)
+        elif self.rev == "LTSC":
+            self.stage = LTSC(serial_number=self.serial_number, home=False)
+
+    def get_arrival_time(self, distance: float):
+        """Calculate time it takes for the platform to cover specified
+        distance."""
+        s_ru, t_ru = calc_startposmod(stage=self.stage)
+        max_velocity = steps2mm(
+            self.stage.velparams["max_velocity"], self.stage.convunits["vel"]
+        )
+        acceleration = steps2mm(
+            self.stage.velparams["acceleration"], self.stage.convunits["acc"]
+        )
+
+        if distance <= 2 * s_ru:
+            return 2 * np.sqrt(distance / acceleration)
+        else:
+            return 2 * t_ru * (distance - 2 * s_ru) / max_velocity
+
+    async def home(self):
+        """Home the stage asynchronously."""
+        self.stage.aso_home(waitfinished=True)
+
+    async def go_to(self, destination: float):
+        """Go to desired position asynchronously."""
+        self.stage.aso_move_absolute(
+            position=mm2steps(destination, self.stage.convunits["pos"])
+        )
+
+
+def calc_startposmod(stage: LTS) -> tuple[float, float]:
+    """Calculate modification of position due to the stage needing to ramp up
+    to constant velocity.
+
+    Args:
+        stage (APTDevice_Motor): stage object from which the velocity
+            parameters are taken.
+
+    Returns:
+        tuple(float, float): (ramp up distance, ramp up time).
+    """
+    vel_params = stage.velparams
+    max_velocity = steps2mm(vel_params["max_velocity"], stage.convunits["vel"])
+    acceleration = steps2mm(vel_params["acceleration"], stage.convunits["acc"])
+
+    t_ru = max_velocity / acceleration
+    s_ru = 1 / 2 * float(str(acceleration)) * float(str(t_ru)) ** 2
+    s_ru = math.ceil(s_ru)
+
+    return s_ru, t_ru
+
+
+class MockStage(MotorizedStage):
+    """Abstract class for motorized stages."""
+
+    @abstractmethod
+    def get_current_position(self):
+        """Current position of the platform."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def initialize(self):
+        """Initialize the stage."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_arrival_time(self, distance: float):
+        """Calculate time it takes for the platform to cover specified
+        distance."""
+        raise NotImplementedError
+
+    @abstractmethod
+    async def home(self):
+        """Home the stage asynchronously."""
+        raise NotImplementedError
+
+    @abstractmethod
+    async def go_to(self, destination: float):
+        """Go to desired position asynchronously."""
+        raise NotImplementedError
