@@ -448,10 +448,11 @@ class LTSStage(MotorizedStage):
     # TODO: test with hardware
     # TODO: add logging?
 
-    def __init__(self, serial_number: str, rev: str = "LTS"):
+    def __init__(self, serial_number: str, rev: str = "LTS", initialize: bool = False):
         self.serial_number = serial_number
         self.rev = rev
-        self.initialize()
+        if initialize:
+            self.initialize()
 
     def get_current_position(self):
         """Current position of the platform in mm."""
@@ -516,28 +517,42 @@ def calc_startposmod(stage: LTS) -> tuple[float, float]:
 class MockStage(MotorizedStage):
     """Abstract class for motorized stages."""
 
+    # TODO: add temporal simulation of movement?
+
+    def __init__(self):
+        self.current_position = 0.0
+
     @abstractmethod
     def get_current_position(self):
         """Current position of the platform."""
-        raise NotImplementedError
+        return self.current_position
 
     @abstractmethod
     def initialize(self):
         """Initialize the stage."""
-        raise NotImplementedError
+        pass
 
     @abstractmethod
     def get_arrival_time(self, distance: float):
         """Calculate time it takes for the platform to cover specified
         distance."""
-        raise NotImplementedError
+        max_velocity = 20.0
+        acceleration = 20.0
+        t_ru = max_velocity / acceleration
+        s_ru = 1 / 2 * float(str(acceleration)) * float(str(t_ru)) ** 2
+        s_ru = math.ceil(s_ru)
+
+        if distance <= 2 * s_ru:
+            return 2 * np.sqrt(distance / acceleration)
+        else:
+            return 2 * t_ru * (distance - 2 * s_ru) / max_velocity
 
     @abstractmethod
     async def home(self):
         """Home the stage asynchronously."""
-        raise NotImplementedError
+        self.current_position = 0.0
 
     @abstractmethod
     async def go_to(self, destination: float):
         """Go to desired position asynchronously."""
-        raise NotImplementedError
+        self.current_position = destination
