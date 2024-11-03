@@ -1,5 +1,6 @@
 import math
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from enum import Enum
 from time import sleep
 from typing import List
@@ -51,6 +52,23 @@ class BoloMsgFreq(Enum):
         self.freq = freq  # frequency in kHz
 
 
+@dataclass
+class BoloLineConfiguration:
+    """Bolometer line configuration"""
+
+    frequency: BoloMsgFreq
+    sampling: BoloMsgSamples
+    sensor_id: BoloMsgSensor
+
+
+@dataclass
+class LTSConfiguration:
+    """LTS configuration"""
+
+    velocity: float
+    acceleration: float
+
+
 class DeviceNotFoundError(Exception):
     def __init__(self, device_name=None, msg=None, *args: object) -> None:
         super().__init__(*args)
@@ -67,8 +85,34 @@ class DeviceNotFoundError(Exception):
             return self.msg
 
 
+class DeviceNotInitialized(RuntimeError):
+    def __init__(self, device_name=None, msg=None, *args: object) -> None:
+        super().__init__(*args)
+        self.device_name = device_name
+        self.msg = msg
+
+    def __str__(self):
+        if self.msg is None:
+            if self.device_name is None:
+                return "Requested operation require initialization."
+            else:
+                return f"{self.device_name} require initizliation before the operation."
+        else:
+            return self.msg
+
+
 class Detector(ABC):
     """Abstract class for detectors."""
+
+    @abstractmethod
+    def initialize(self):
+        """Initialize the detector."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def configure(self, configuration):
+        """Initialize the detector."""
+        raise NotImplementedError
 
     @abstractmethod
     def measure(self):
@@ -91,6 +135,82 @@ class BoloLine(Detector):
 
     Tested for THz mini (line of 4 wideband bolometers).
     """
+
+    def initialize(self):
+        """Initialize the bolometer."""
+        self._makemsg()
+        self._recalculate_ta()
+
+        self._dev = serial.Serial(
+            port=self._port,
+            baudrate=115200,
+            bytesize=serial.EIGHTBITS,
+            timeout=0,  # NOTE: under test (previously 0.1); currently: non-blocking
+            parity=serial.PARITY_NONE,
+            stopbits=serial.STOPBITS_ONE,
+            write_timeout=0.1,
+        )
+
+        # first communication
+        self._makemsgparts(sensor=(0).to_bytes(1))
+        self._dev.reset_input_buffer()
+        self._dev.reset_output_buffer()
+        frame = []
+        try:
+            self._write()
+            sleep(self._read_delay)
+            frame.append(self._read())
+            self._write()
+            sleep(self._read_delay)
+            frame.append(self._read())
+            self._write()
+            sleep(self._read_delay)
+            frame.append(self._read())
+            self._write()
+            sleep(self._read_delay)
+        except serial.SerialTimeoutException as e:
+            raise e
+        frame.append(self._read())
+        for ans in frame:
+            if len(ans) > 0:
+                self._idstr = ans[0:5]
+                self._sn = int(self._idstr[0])
+                self._prodyear = int(self._idstr[1]) + 2000
+                senstype = int(self._idstr[2]) * 100 + int(self._idstr[3])
+                if senstype == 0:
+                    self._senstype = "WIDEBAND"
+                else:
+                    self._senstype = f"{senstype}"
+                self._fw = int(self._idstr[4]) * 0.1
+                break
+
+        # finish setup
+        self.is_initialized = True
+
+    def configure(self, configuration: BoloLineConfiguration):
+        """Configure the bolometer"""
+        if self.is_initialized:
+            if (
+                configuration.frequency is None
+                or configuration.sampling is None
+                or configuration.sensor_id is None
+            ):
+                raise ValueError("Configuration parameters can't be None")
+            self._sensor = configuration.sensor_id
+            self._freq = configuration.frequency
+            self._samples = configuration.sampling
+            self._makemsg()
+            self._recalculate_ta()
+            self._dev.reset_input_buffer()
+            self._dev.reset_output_buffer()
+            self._write()
+            sleep(self._read_delay)
+            sleep(self._ta)
+            self._read()
+        else:
+            raise DeviceNotInitialized(
+                "Configuration require the bolometer to be first initialized."
+            )
 
     def get_ta(self) -> float:
         """Total acqusition time (between write to the device and read from
@@ -163,21 +283,21 @@ class BoloLine(Detector):
         frequency = self._freq.msg if frequency is None else frequency
         self._msg = sensor + samples + frequency
 
-    def _cold_start(self) -> None:
-        """To be used before first measurement after downtime of the device
-        (device disconnected from power source)."""
-        self._dev.reset_input_buffer()
-        self._dev.reset_output_buffer()
+    # def _cold_start(self) -> None:
+    #     """To be used before first measurement after downtime of the device
+    #     (device disconnected from power source)."""
+    #     self._dev.reset_input_buffer()
+    #     self._dev.reset_output_buffer()
 
-        self._write()
-        sleep(self._read_delay)
-        sleep(self._ta)
-        self._read()
+    #     self._write()
+    #     sleep(self._read_delay)
+    #     sleep(self._ta)
+    #     self._read()
 
-        self._write()
-        sleep(self._read_delay)
-        sleep(self._ta)
-        self._read()
+    #     self._write()
+    #     sleep(self._read_delay)
+    #     sleep(self._ta)
+    #     self._read()
 
     def get_msg(self) -> bytes:
         """Message written to the detector."""
@@ -199,7 +319,8 @@ class BoloLine(Detector):
         sensor: BoloMsgSensor = BoloMsgSensor.FIRST,
         samples: BoloMsgSamples = BoloMsgSamples.S100,
         freq: BoloMsgFreq = BoloMsgFreq.F1,
-        cold_start=False,
+        initialize: bool = False,
+        # cold_start=False,
     ) -> None:
         self._hid = f"{idVendor}:{idProduct}"  # hardware id (vendor id : product id)
         restr = "(?i)" + self._hid
@@ -211,65 +332,27 @@ class BoloLine(Detector):
             0.001  # selected experimentally (longer wait time may be necessary)
         )
         self._write_delay = 0.001
-        self._dev = serial.Serial(
-            port=self._port,
-            baudrate=115200,
-            bytesize=serial.EIGHTBITS,
-            timeout=0,  # NOTE: under test (previously 0.1); currently: non-blocking
-            parity=serial.PARITY_NONE,
-            stopbits=serial.STOPBITS_ONE,
-            write_timeout=0.1,
-        )
-
-        self._samples = BoloMsgSamples.S100
-        self._freq = BoloMsgFreq.F1
-        self._ta = self._samples.nsamp / (self._freq.freq * 1000)
-
-        # first communication
-        self._makemsgparts(sensor=(0).to_bytes(1))
-        self._dev.reset_input_buffer()
-        self._dev.reset_output_buffer()
-        frame = []
-        try:
-            self._write()
-            sleep(self._read_delay)
-            frame.append(self._read())
-            self._write()
-            sleep(self._read_delay)
-            frame.append(self._read())
-            self._write()
-            sleep(self._read_delay)
-            frame.append(self._read())
-            self._write()
-            sleep(self._read_delay)
-        except serial.SerialTimeoutException as e:
-            raise e
-        frame.append(self._read())
-        for ans in frame:
-            if len(ans) > 0:
-                self._idstr = ans[0:5]
-                self._sn = int(self._idstr[0])
-                self._prodyear = int(self._idstr[1]) + 2000
-                senstype = int(self._idstr[2]) * 100 + int(self._idstr[3])
-                if senstype == 0:
-                    self._senstype = "WIDEBAND"
-                else:
-                    self._senstype = f"{senstype}"
-                self._fw = int(self._idstr[4]) * 0.1
-                break
-
-        # finish setup
-        self._initialized = True
+        # self._samples = BoloMsgSamples.S100
+        # self._freq = BoloMsgFreq.F1
+        # self._ta = self._samples.nsamp / (self._freq.freq * 1000)
         self._sensor = sensor
         self._samples = samples
         self._freq = freq
-        self._makemsg()
-        self._recalculate_ta()
-        if cold_start:
-            # NOTE: single measurement right after connecting physically the
-            # device and setting measurement parameters have some weird peak. Use
-            # this method make read of it
-            self._cold_start()
+        self.is_initialized = False
+
+        if initialize:
+            self.initialize()
+
+        # self._sensor = sensor
+        # self._samples = samples
+        # self._freq = freq
+        # self._makemsg()
+        # self._recalculate_ta()
+        # if cold_start:
+        # NOTE: single measurement right after connecting physically the
+        # device and setting measurement parameters have some weird peak. Use
+        # this method make read of it
+        # self._cold_start()
 
     def __str__(self):
         return (
@@ -407,7 +490,13 @@ class Source(ABC):
     """Abstract class for sources."""
 
     @abstractmethod
-    def __init__(self):
+    def initialize(self):
+        """Initialize the source"""
+        raise NotImplementedError
+
+    @abstractmethod
+    def configure(self, configuration):
+        """Configure the source"""
         raise NotImplementedError
 
 
@@ -422,6 +511,11 @@ class MotorizedStage(ABC):
     @abstractmethod
     def initialize(self):
         """Initialize the stage."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def configure(self, configuration):
+        """Configure the source"""
         raise NotImplementedError
 
     @abstractmethod
@@ -464,6 +558,11 @@ class LTSStage(MotorizedStage):
             self.stage = LTS(serial_number=self.serial_number, home=False)
         elif self.rev == "LTSC":
             self.stage = LTSC(serial_number=self.serial_number, home=False)
+
+    @abstractmethod
+    def configure(self, configuration: LTSConfiguration):
+        """Configure the source"""
+        raise NotImplementedError
 
     def get_arrival_time(self, distance: float):
         """Calculate time it takes for the platform to cover specified
@@ -531,6 +630,11 @@ class MockStage(MotorizedStage):
     def initialize(self):
         """Initialize the stage."""
         pass
+
+    @abstractmethod
+    def configure(self, configuration):
+        """Configure the source"""
+        raise NotImplementedError
 
     @abstractmethod
     def get_arrival_time(self, distance: float):
