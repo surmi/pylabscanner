@@ -106,22 +106,17 @@ class Detector(ABC):
 
     @abstractmethod
     def initialize(self):
-        """Initialize the detector."""
+        """Initialize communication with the detector."""
         raise NotImplementedError
 
     @abstractmethod
     def configure(self, configuration):
-        """Initialize the detector."""
+        """Change configuration of the detector"""
         raise NotImplementedError
 
     @abstractmethod
     def measure(self):
         """Measure single value."""
-        raise NotImplementedError
-
-    @abstractmethod
-    def measure_series(self):
-        """Make series of measurements."""
         raise NotImplementedError
 
     @abstractmethod
@@ -137,10 +132,7 @@ class BoloLine(Detector):
     """
 
     def initialize(self):
-        """Initialize the bolometer."""
-        self._makemsg()
-        self._recalculate_ta()
-
+        """Initialize communication with the detector."""
         self._dev = serial.Serial(
             port=self._port,
             baudrate=115200,
@@ -150,9 +142,8 @@ class BoloLine(Detector):
             stopbits=serial.STOPBITS_ONE,
             write_timeout=0.1,
         )
-
         # first communication
-        self._makemsgparts(sensor=(0).to_bytes(1))
+        # self._makemsgparts(sensor=(0).to_bytes(1))
         self._dev.reset_input_buffer()
         self._dev.reset_output_buffer()
         frame = []
@@ -188,7 +179,9 @@ class BoloLine(Detector):
         self.is_initialized = True
 
     def configure(self, configuration: BoloLineConfiguration):
-        """Configure the bolometer"""
+        """Change configuration of the detector.
+        Requires connection to be initialized first.
+        """
         if self.is_initialized:
             if (
                 configuration.frequency is None
@@ -338,7 +331,14 @@ class BoloLine(Detector):
         self._sensor = sensor
         self._samples = samples
         self._freq = freq
+        self._dev = None
+        self._idstr = None
+        self._sn = None
+        self._prodyear = None
+        self._senstype = None
         self.is_initialized = False
+        self._makemsg()
+        self._recalculate_ta()
 
         if initialize:
             self.initialize()
@@ -486,6 +486,75 @@ class BoloLine(Detector):
         return [self.pairwise(self._trimans(i)) for i in data]
 
 
+class MockBoloLine(BoloLine):
+    """Mock for line of bolometers."""
+
+    def __init__(
+        self,
+        idVendor="03EB",
+        idProduct="2404",
+        sensor: BoloMsgSensor = BoloMsgSensor.FIRST,
+        samples: BoloMsgSamples = BoloMsgSamples.S100,
+        freq: BoloMsgFreq = BoloMsgFreq.F1,
+        initialize: bool = False,
+        # cold_start=False,
+    ) -> None:
+        self._hid = f"{idVendor}:{idProduct}"  # hardware id (vendor id : product id)
+        self._read_delay = (
+            0.001  # selected experimentally (longer wait time may be necessary)
+        )
+        self._dev = None
+        self._write_delay = 0.001
+        self._sensor = sensor
+        self._samples = samples
+        self._freq = freq
+        self._idstr = None
+        self._sn = None
+        self._prodyear = None
+        self._senstype = None
+        self._makemsg()
+        self._recalculate_ta()
+        self.is_initialized = False
+
+        if initialize:
+            self.initialize()
+
+    def initialize(self):
+        """Initialize the detector."""
+        # self._idstr = "ids"
+        self._sn = 0
+        self._prodyear = 2024
+        self._senstype = "WIDEBAND"
+        self.is_initialized = True
+
+    def configure(self, configuration: BoloLineConfiguration):
+        """Initialize the detector."""
+        if self.is_initialized:
+            if (
+                configuration.frequency is None
+                or configuration.sampling is None
+                or configuration.sensor_id is None
+            ):
+                raise ValueError("Configuration parameters can't be None")
+            self._sensor = configuration.sensor_id
+            self._freq = configuration.frequency
+            self._samples = configuration.sampling
+            self._makemsg()
+            self._recalculate_ta()
+        else:
+            raise DeviceNotInitialized(
+                "Configuration require the bolometer to be first initialized."
+            )
+
+    def measure(self):
+        """Measure single value."""
+        # TODO: Mock data aquisition
+        # TODO: Mock data parsing
+        # data = self.pairwise(self._trimans(self._read()))
+        data = np.random.uniform(high=3.3, size=self.get_samples()).tolist()
+        return data
+
+
 class Source(ABC):
     """Abstract class for sources."""
 
@@ -553,15 +622,15 @@ class LTSStage(MotorizedStage):
         return steps2mm(self.stage.status["position"], self.stage.convunits["pos"])
 
     def initialize(self):
-        """Initialize the stage."""
+        """Initialize communication with the stage."""
         if self.rev == "LTS":
             self.stage = LTS(serial_number=self.serial_number, home=False)
         elif self.rev == "LTSC":
             self.stage = LTSC(serial_number=self.serial_number, home=False)
 
-    @abstractmethod
     def configure(self, configuration: LTSConfiguration):
         """Configure the source"""
+        # TODO: first add methods to LTS for configuration
         raise NotImplementedError
 
     def get_arrival_time(self, distance: float):
@@ -613,7 +682,7 @@ def calc_startposmod(stage: LTS) -> tuple[float, float]:
     return s_ru, t_ru
 
 
-class MockStage(MotorizedStage):
+class MockLTSStage(LTSStage):
     """Abstract class for motorized stages."""
 
     # TODO: add temporal simulation of movement?
@@ -621,22 +690,19 @@ class MockStage(MotorizedStage):
     def __init__(self):
         self.current_position = 0.0
 
-    @abstractmethod
     def get_current_position(self):
         """Current position of the platform."""
         return self.current_position
 
-    @abstractmethod
     def initialize(self):
         """Initialize the stage."""
         pass
 
-    @abstractmethod
-    def configure(self, configuration):
+    def configure(self, configuration: LTSConfiguration):
         """Configure the source"""
+        # TODO: update this after making changes to LTSStage
         raise NotImplementedError
 
-    @abstractmethod
     def get_arrival_time(self, distance: float):
         """Calculate time it takes for the platform to cover specified
         distance."""
@@ -651,12 +717,10 @@ class MockStage(MotorizedStage):
         else:
             return 2 * t_ru * (distance - 2 * s_ru) / max_velocity
 
-    @abstractmethod
     async def home(self):
         """Home the stage asynchronously."""
         self.current_position = 0.0
 
-    @abstractmethod
     async def go_to(self, destination: float):
         """Go to desired position asynchronously."""
         self.current_position = destination
