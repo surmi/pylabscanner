@@ -15,7 +15,7 @@ from serial import SerialException
 
 from .commands import LineStart, LineType
 from .devices import BoloMsgFreq, BoloMsgSamples, BoloMsgSensor
-from .devices.LTS import LTS, LTSC, error_callback, mm2steps
+from .devices.LTS import LTS, LTSC, mm2steps
 
 
 def init_stages(stageslist: str, stage_no: Dict[str, str]) -> List[LTS]:
@@ -94,8 +94,8 @@ def init_stages(stageslist: str, stage_no: Dict[str, str]) -> List[LTS]:
             stages.append(stage_z)
 
     sleep(1)
-    for s in stages:
-        s.register_error_callback(error_callback)
+    # for s in stages:
+    #     s.register_error_callback(error_callback)
     return stages
 
 

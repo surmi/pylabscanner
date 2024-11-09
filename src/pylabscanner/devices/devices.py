@@ -2,6 +2,7 @@ import math
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
+from functools import wraps
 from time import sleep
 from typing import List
 
@@ -60,6 +61,15 @@ class BoloLineConfiguration:
     sampling: BoloMsgSamples
     sensor_id: BoloMsgSensor
 
+    def __eq__(self, other) -> bool:
+        return all(
+            [
+                self.frequency == other.frequency,
+                self.sampling == other.sampling,
+                self.sensor_id == other.sensor_id,
+            ]
+        )
+
 
 @dataclass
 class LTSConfiguration:
@@ -101,7 +111,29 @@ class DeviceNotInitialized(RuntimeError):
             return self.msg
 
 
-class Detector(ABC):
+class Device(ABC):
+    @staticmethod
+    def check_initialized(func):
+        @wraps(func)
+        def wrapper(self, *args, **kwargs):
+            if not self.is_initialized:
+                raise DeviceNotInitialized(device_name=self.__str__)
+            return func(self, *args, **kwargs)
+
+        return wrapper
+
+    @property
+    @abstractmethod
+    def is_initialized(self):
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def device_name(self):
+        raise NotImplementedError
+
+
+class Detector(Device, ABC):
     """Abstract class for detectors."""
 
     @abstractmethod
@@ -112,6 +144,11 @@ class Detector(ABC):
     @abstractmethod
     def configure(self, configuration):
         """Change configuration of the detector"""
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_current_configuration(self, configuration):
+        """Current configuration of the detector"""
         raise NotImplementedError
 
     @abstractmethod
@@ -131,8 +168,15 @@ class BoloLine(Detector):
     Tested for THz mini (line of 4 wideband bolometers).
     """
 
+    # TODO: Add detection of detector disconnecting (timoeout?)
+
     def initialize(self):
         """Initialize communication with the detector."""
+        restr = "(?i)" + self._hid
+        try:
+            self._port = next(list_ports.grep(restr)).name
+        except StopIteration:
+            raise DeviceNotFoundError(msg="Bolometer line not found.")
         self._dev = serial.Serial(
             port=self._port,
             baudrate=115200,
@@ -176,68 +220,74 @@ class BoloLine(Detector):
                 break
 
         # finish setup
-        self.is_initialized = True
+        self._is_initialized = True
 
+    @Device.check_initialized
     def configure(self, configuration: BoloLineConfiguration):
         """Change configuration of the detector.
         Requires connection to be initialized first.
         """
-        if self.is_initialized:
-            if (
-                configuration.frequency is None
-                or configuration.sampling is None
-                or configuration.sensor_id is None
-            ):
-                raise ValueError("Configuration parameters can't be None")
-            self._sensor = configuration.sensor_id
-            self._freq = configuration.frequency
-            self._samples = configuration.sampling
-            self._makemsg()
-            self._recalculate_ta()
-            self._dev.reset_input_buffer()
-            self._dev.reset_output_buffer()
-            self._write()
-            sleep(self._read_delay)
-            sleep(self._ta)
-            self._read()
-        else:
-            raise DeviceNotInitialized(
-                "Configuration require the bolometer to be first initialized."
-            )
+        if (
+            configuration.frequency is None
+            or configuration.sampling is None
+            or configuration.sensor_id is None
+        ):
+            raise ValueError("Configuration parameters can't be None")
+        self._sensor = configuration.sensor_id
+        self._freq = configuration.frequency
+        self._samples = configuration.sampling
+        self._makemsg()
+        self._recalculate_ta()
+        self._dev.reset_input_buffer()
+        self._dev.reset_output_buffer()
+        self._write()
+        sleep(self._read_delay)
+        sleep(self._ta)
+        self._read()
 
+    @Device.check_initialized
     def get_ta(self) -> float:
         """Total acqusition time (between write to the device and read from
         the device) in seconds"""
         return self._ta + self._read_delay
 
-    def get_sensor(self) -> str:
+    def get_current_configuration(self):
+        """Current configuration of the detector"""
+        return BoloLineConfiguration(
+            frequency=self._freq, sampling=self._samples, sensor_id=self._sensor
+        )
+
+    @property
+    def sensor(self) -> str:
         """Number of the sensor to read from."""
         return self._sensor.name
 
-    def set_sensor(self, sensor: BoloMsgSensor) -> None:
-        """Change sensor to read from. Recalculates internal parameters"""
-        self._sensor = sensor
-        self._makemsg()
+    # def set_sensor(self, sensor: BoloMsgSensor) -> None:
+    #     """Change sensor to read from. Recalculates internal parameters"""
+    #     self._sensor = sensor
+    #     self._makemsg()
 
-    def get_samples(self) -> int:
+    @property
+    def samples(self) -> int:
         """Number of samples to register in single read."""
         return self._samples.nsamp
 
-    def set_samples(self, samples: BoloMsgSamples) -> None:
-        """Change number of measured samples. Recalculates internal parameters"""
-        self._samples = samples
-        self._recalculate_ta()
-        self._makemsg()
+    # def set_samples(self, samples: BoloMsgSamples) -> None:
+    #     """Change number of measured samples. Recalculates internal parameters"""
+    #     self._samples = samples
+    #     self._recalculate_ta()
+    #     self._makemsg()
 
-    def get_freq(self) -> int:
+    @property
+    def frequency(self) -> int:
         """Reading frequency in kHz."""
         return self._freq.freq
 
-    def set_freq(self, freq: BoloMsgFreq) -> None:
-        """Change frequency of measuring samples. Recalculates internal parameters"""
-        self._freq = freq
-        self._recalculate_ta()
-        self._makemsg()
+    # def set_freq(self, freq: BoloMsgFreq) -> None:
+    #     """Change frequency of measuring samples. Recalculates internal parameters"""
+    #     self._freq = freq
+    #     self._recalculate_ta()
+    #     self._makemsg()
 
     def _recalculate_ta(self) -> None:
         """Recalculate time of acquisition after changing number of samples or
@@ -292,9 +342,9 @@ class BoloLine(Detector):
     #     sleep(self._ta)
     #     self._read()
 
-    def get_msg(self) -> bytes:
-        """Message written to the detector."""
-        return self._msg
+    # def get_msg(self) -> bytes:
+    #     """Message written to the detector."""
+    #     return self._msg
 
     def pairwise(self, iterable) -> List[float]:
         """Return iterable with bytes converted to numbers."""
@@ -316,11 +366,6 @@ class BoloLine(Detector):
         # cold_start=False,
     ) -> None:
         self._hid = f"{idVendor}:{idProduct}"  # hardware id (vendor id : product id)
-        restr = "(?i)" + self._hid
-        try:
-            self._port = next(list_ports.grep(restr)).name
-        except StopIteration:
-            raise DeviceNotFoundError(msg="Bolometer line not found.")
         self._read_delay = (
             0.001  # selected experimentally (longer wait time may be necessary)
         )
@@ -336,7 +381,7 @@ class BoloLine(Detector):
         self._sn = None
         self._prodyear = None
         self._senstype = None
-        self.is_initialized = False
+        self._is_initialized = False
         self._makemsg()
         self._recalculate_ta()
 
@@ -354,13 +399,17 @@ class BoloLine(Detector):
         # this method make read of it
         # self._cold_start()
 
-    def __str__(self):
-        return (
-            f"Luvitera Mini THz Sensor, 4 pixel array with {self._senstype} "
-            f"sensor type."
-        )
-
-    def __repr__(self):
+    def description(self):
+        """Detialed description of detector properties."""
+        if any(
+            (
+                self._senstype is None,
+                self._prodyear is None,
+                self._sn is None,
+                self._fw is None,
+            )
+        ):
+            return self.__str__()
         return (
             f"Luvitera Mini THz Sensor, 4 pixel array with {self._senstype} "
             "sensor type.\n Sensor details:\n -year of production: "
@@ -378,6 +427,7 @@ class BoloLine(Detector):
                 break
         return res
 
+    @Device.check_initialized
     def measure(self) -> List[float]:
         """Perform single measurement. Requires additional write and read due
         to the fact how the detector works.
@@ -408,6 +458,7 @@ class BoloLine(Detector):
 
         return data
 
+    @Device.check_initialized
     def live_view_read(self) -> List[float]:
         # WARNING: not tested yet
         self._dev.reset_input_buffer()
@@ -423,6 +474,7 @@ class BoloLine(Detector):
 
         return data
 
+    @Device.check_initialized
     def measure_series(
         self, n: int, interval: float = None, start_delay: float = -1
     ) -> List[List[float]]:
@@ -485,6 +537,14 @@ class BoloLine(Detector):
         # retrieve decimal values from frames
         return [self.pairwise(self._trimans(i)) for i in data]
 
+    @property
+    def is_initialized(self) -> bool:
+        return self._is_initialized
+
+    @property
+    def device_name(self) -> str:
+        return "Luvitera Mini THz Sensor"
+
 
 class MockBoloLine(BoloLine):
     """Mock for line of bolometers."""
@@ -514,7 +574,7 @@ class MockBoloLine(BoloLine):
         self._senstype = None
         self._makemsg()
         self._recalculate_ta()
-        self.is_initialized = False
+        self._is_initialized = False
 
         if initialize:
             self.initialize()
@@ -525,34 +585,35 @@ class MockBoloLine(BoloLine):
         self._sn = 0
         self._prodyear = 2024
         self._senstype = "WIDEBAND"
-        self.is_initialized = True
+        self._is_initialized = True
 
+    @Device.check_initialized
     def configure(self, configuration: BoloLineConfiguration):
         """Initialize the detector."""
-        if self.is_initialized:
-            if (
-                configuration.frequency is None
-                or configuration.sampling is None
-                or configuration.sensor_id is None
-            ):
-                raise ValueError("Configuration parameters can't be None")
-            self._sensor = configuration.sensor_id
-            self._freq = configuration.frequency
-            self._samples = configuration.sampling
-            self._makemsg()
-            self._recalculate_ta()
-        else:
-            raise DeviceNotInitialized(
-                "Configuration require the bolometer to be first initialized."
-            )
+        if (
+            configuration.frequency is None
+            or configuration.sampling is None
+            or configuration.sensor_id is None
+        ):
+            raise ValueError("Configuration parameters can't be None")
+        self._sensor = configuration.sensor_id
+        self._freq = configuration.frequency
+        self._samples = configuration.sampling
+        self._makemsg()
+        self._recalculate_ta()
 
+    @Device.check_initialized
     def measure(self):
         """Measure single value."""
         # TODO: Mock data aquisition
         # TODO: Mock data parsing
         # data = self.pairwise(self._trimans(self._read()))
-        data = np.random.uniform(high=3.3, size=self.get_samples()).tolist()
+        data = np.random.uniform(high=3.3, size=self.samples).tolist()
         return data
+
+    @property
+    def device_name(self) -> str:
+        return "Mock-up of Luvitera Mini THz Sensor"
 
 
 class Source(ABC):
@@ -569,7 +630,7 @@ class Source(ABC):
         raise NotImplementedError
 
 
-class MotorizedStage(ABC):
+class MotorizedStage(Device, ABC):
     """Abstract class for motorized stages."""
 
     @abstractmethod
@@ -614,9 +675,13 @@ class LTSStage(MotorizedStage):
     def __init__(self, serial_number: str, rev: str = "LTS", initialize: bool = False):
         self.serial_number = serial_number
         self.rev = rev
+        if self.rev not in ("LTS", "LTSC"):
+            raise ValueError('rev argument can only be "LTS" or "LTSC"')
+        self._is_initialized = False
         if initialize:
             self.initialize()
 
+    @Device.check_initialized
     def get_current_position(self):
         """Current position of the platform in mm."""
         return steps2mm(self.stage.status["position"], self.stage.convunits["pos"])
@@ -627,12 +692,15 @@ class LTSStage(MotorizedStage):
             self.stage = LTS(serial_number=self.serial_number, home=False)
         elif self.rev == "LTSC":
             self.stage = LTSC(serial_number=self.serial_number, home=False)
+        self._is_initialized = True
 
+    @Device.check_initialized
     def configure(self, configuration: LTSConfiguration):
         """Configure the source"""
         # TODO: first add methods to LTS for configuration
         raise NotImplementedError
 
+    @Device.check_initialized
     def get_arrival_time(self, distance: float):
         """Calculate time it takes for the platform to cover specified
         distance."""
@@ -649,15 +717,27 @@ class LTSStage(MotorizedStage):
         else:
             return 2 * t_ru * (distance - 2 * s_ru) / max_velocity
 
+    @Device.check_initialized
     async def home(self):
         """Home the stage asynchronously."""
         self.stage.aso_home(waitfinished=True)
 
+    @Device.check_initialized
     async def go_to(self, destination: float):
         """Go to desired position asynchronously."""
         self.stage.aso_move_absolute(
             position=mm2steps(destination, self.stage.convunits["pos"])
         )
+
+    @property
+    def is_initialized(self) -> bool:
+        return self._is_initialized
+
+    @property
+    def device_name(self) -> str:
+        if self.rev:
+            return f"Thorlabs {self.rev} stage"
+        return "Thorlabs stage"
 
 
 def calc_startposmod(stage: LTS) -> tuple[float, float]:
@@ -683,26 +763,34 @@ def calc_startposmod(stage: LTS) -> tuple[float, float]:
 
 
 class MockLTSStage(LTSStage):
-    """Abstract class for motorized stages."""
+    """Mock-up class for motorized stages."""
 
     # TODO: add temporal simulation of movement?
 
-    def __init__(self):
+    def __init__(self, serial_number: str, rev: str = "LTS", initialize: bool = False):
         self.current_position = 0.0
+        self.serial_number = serial_number
+        self.rev = rev
+        self._is_initialized = False
+        if initialize:
+            self.initialize()
 
+    @Device.check_initialized
     def get_current_position(self):
         """Current position of the platform."""
         return self.current_position
 
     def initialize(self):
         """Initialize the stage."""
-        pass
+        self._is_initialized = True
 
+    @Device.check_initialized
     def configure(self, configuration: LTSConfiguration):
         """Configure the source"""
         # TODO: update this after making changes to LTSStage
         raise NotImplementedError
 
+    @Device.check_initialized
     def get_arrival_time(self, distance: float):
         """Calculate time it takes for the platform to cover specified
         distance."""
@@ -717,10 +805,22 @@ class MockLTSStage(LTSStage):
         else:
             return 2 * t_ru * (distance - 2 * s_ru) / max_velocity
 
+    @Device.check_initialized
     async def home(self):
         """Home the stage asynchronously."""
         self.current_position = 0.0
 
+    @Device.check_initialized
     async def go_to(self, destination: float):
         """Go to desired position asynchronously."""
         self.current_position = destination
+
+    @property
+    def is_initialized(self) -> bool:
+        return self._is_initialized
+
+    @property
+    def device_name(self) -> str:
+        if self.rev:
+            return f"Thorlabs {self.rev} stage"
+        return "Thorlabs stage"

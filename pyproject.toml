@@ -48,4 +48,8 @@ version = {attr = "pylabscanner.__version__"}
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+# pythonpath = ["src"]
+markers = [
+    "detector: tests that use detector",
+    "device: testing features of devices"
+]
