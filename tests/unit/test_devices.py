@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest
 
 from pylabscanner.devices import (
@@ -8,24 +10,11 @@ from pylabscanner.devices import (
     BoloMsgSensor,
     DeviceNotFoundError,
     DeviceNotInitialized,
+    LTSConfiguration,
+    LTSStage,
     MockBoloLine,
+    MockLTSStage,
 )
-
-# TODO: how to do prerequesits? E.g. the device needs to be connected for some
-# tests on actual class, the device needs to be initialized
-# TODO: how to switch between mock and actual class
-
-# LTS
-# ======> test for mock and for actual class
-# Assert initialization required
-# initialize -> the device is initialized | the device is not initialized
-# configure -> TODO changing max_velocity and max_acceleration
-# home -> homing is done within specified amount of time (timeout)
-# go_to -> correct distance is reached within specified amount of time (timeout)
-# get_current_position -> correct variable (value and type) is returned
-# get_arrival_time -> correct variable (value and type) is returned
-# ======> test for actual class only (may require monkeypatch)
-# Returns right exception on device not connected
 
 
 @pytest.mark.detector
@@ -49,7 +38,7 @@ class TestDetector:
         with pytest.raises(DeviceNotInitialized):
             detector.measure()
         with pytest.raises(DeviceNotInitialized):
-            detector.get_ta()
+            detector.acquisition_time
 
     def test_detector_initializes(self, mock_devices: bool):
         detector = self._initialize_bolometer(mock_bolometer=mock_devices)
@@ -73,13 +62,13 @@ class TestDetector:
             sensor_id=BoloMsgSensor.FIRST,
         )
         detector.configure(configuration=configuration)
-        assert detector.get_current_configuration() == configuration
+        assert detector.current_configuration == configuration
 
     def test_detector_measures(self, mock_devices: bool):
         detector = self._initialize_bolometer(
             mock_bolometer=mock_devices, initialize=True
         )
-        no_samples = detector.get_current_configuration().sampling.nsamp
+        no_samples = detector.current_configuration.sampling.nsamp
         data = detector.measure()
         assert len(data) == no_samples
 
@@ -89,3 +78,117 @@ class TestDetector:
         )
         with pytest.raises(DeviceNotFoundError):
             detector.initialize()
+
+
+@pytest.mark.stage
+@pytest.mark.device
+class TestStage:
+    def _initialize_stage(self, mock_stage: bool, **args):
+        if mock_stage:
+            return MockLTSStage(**args)
+        else:
+            return LTSStage(**args)
+
+    def _get_serial_number(self, mock_stage: bool) -> str:
+        if mock_stage:
+            return "0000000"
+        # TODO: add reading from configuration or env. var.
+
+    def test_not_initialized_error(self, mock_devices):
+        stage = self._initialize_stage(
+            mock_stage=mock_devices, serial_number=self._get_serial_number(mock_devices)
+        )
+        with pytest.raises(DeviceNotInitialized):
+            stage.current_position
+        with pytest.raises(DeviceNotInitialized):
+            configuration = LTSConfiguration(velocity=20, acceleration=20)
+            stage.configure(configuration=configuration)
+        with pytest.raises(DeviceNotInitialized):
+            distance = 100
+            stage.calculate_arrival_time(distance=distance)
+        with pytest.raises(DeviceNotInitialized):
+            stage.home()
+        with pytest.raises(DeviceNotInitialized):
+            distance = 150
+            stage.go_to(destination=distance)
+
+    def test_stage_initializes(self, mock_devices: bool):
+        stage = self._initialize_stage(
+            mock_stage=mock_devices, serial_number=self._get_serial_number(mock_devices)
+        )
+        assert not stage.is_initialized
+        stage.initialize()
+        assert stage.is_initialized
+
+    def test_stage_initializes_on_startup(self, mock_devices: bool):
+        stage = self._initialize_stage(
+            mock_stage=mock_devices,
+            serial_number=self._get_serial_number(mock_devices),
+            initialize=True,
+        )
+        assert stage.is_initialized
+
+    def test_stage_configures(self, mock_devices: bool):
+        stage = self._initialize_stage(
+            mock_stage=mock_devices,
+            serial_number=self._get_serial_number(mock_devices),
+            initialize=True,
+        )
+        configuration = LTSConfiguration(acceleration=30, velocity=30)
+        stage.configure(configuration=configuration)
+        assert stage.current_configuration == configuration
+
+    def test_stage_go_to(self, mock_devices: bool):
+        stage = self._initialize_stage(
+            mock_stage=mock_devices,
+            serial_number=self._get_serial_number(mock_devices),
+            initialize=True,
+        )
+        destination = 100.0 if stage.current_position != 100.0 else 50.0
+        asyncio.run(stage.go_to(destination=destination))
+        assert stage.current_position == destination
+
+    def test_stage_home(self, mock_devices: bool):
+        stage = self._initialize_stage(
+            mock_stage=mock_devices,
+            serial_number=self._get_serial_number(mock_devices),
+            initialize=True,
+        )
+        if stage.current_position == 0.0:
+            asyncio.run(stage.go_to(destination=50.0))
+        asyncio.run(stage.home())
+        assert stage.current_position == 0.0
+
+    def test_stage_device_not_found_error(self):
+        stage = self._initialize_stage(
+            mock_stage=False,
+            serial_number=self._get_serial_number(False),
+        )
+        with pytest.raises(DeviceNotFoundError):
+            stage.initialize()
+
+    def test_stage_validate_distance(self, mock_devices: bool):
+        stage = self._initialize_stage(
+            mock_stage=mock_devices,
+            serial_number=self._get_serial_number(mock_devices),
+            initialize=True,
+        )
+        destination = -100
+        with pytest.raises(ValueError):
+            asyncio.run(stage.go_to(destination=destination))
+        destination = 400
+        with pytest.raises(ValueError):
+            asyncio.run(stage.go_to(destination=destination))
+
+    def test_stage_validate_configuration(self, mock_devices: bool):
+        stage = self._initialize_stage(
+            mock_stage=mock_devices,
+            serial_number=self._get_serial_number(mock_devices),
+            initialize=True,
+        )
+        configuration = LTSConfiguration(acceleration=60, velocity=60)
+        with pytest.raises(ValueError):
+            stage.configure(configuration=configuration)
+        configuration = LTSConfiguration(acceleration=-20, velocity=-20)
+        with pytest.raises(ValueError):
+            stage.configure(configuration=configuration)

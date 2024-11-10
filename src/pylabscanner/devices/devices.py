@@ -78,6 +78,11 @@ class LTSConfiguration:
     velocity: float
     acceleration: float
 
+    def __eq__(self, other) -> bool:
+        return all(
+            [self.acceleration == other.acceleration, self.velocity == other.velocity]
+        )
+
 
 class DeviceNotFoundError(Exception):
     def __init__(self, device_name=None, msg=None, *args: object) -> None:
@@ -146,8 +151,9 @@ class Detector(Device, ABC):
         """Change configuration of the detector"""
         raise NotImplementedError
 
+    @property
     @abstractmethod
-    def get_current_configuration(self, configuration):
+    def current_configuration(self, configuration):
         """Current configuration of the detector"""
         raise NotImplementedError
 
@@ -156,8 +162,9 @@ class Detector(Device, ABC):
         """Measure single value."""
         raise NotImplementedError
 
+    @property
     @abstractmethod
-    def get_ta(self):
+    def acquisition_time(self):
         """Time of acquisition in seconds."""
         raise NotImplementedError
 
@@ -245,13 +252,15 @@ class BoloLine(Detector):
         sleep(self._ta)
         self._read()
 
+    @property
     @Device.check_initialized
-    def get_ta(self) -> float:
+    def acquisition_time(self) -> float:
         """Total acqusition time (between write to the device and read from
         the device) in seconds"""
         return self._ta + self._read_delay
 
-    def get_current_configuration(self):
+    @property
+    def current_configuration(self):
         """Current configuration of the detector"""
         return BoloLineConfiguration(
             frequency=self._freq, sampling=self._samples, sensor_id=self._sensor
@@ -633,8 +642,9 @@ class Source(ABC):
 class MotorizedStage(Device, ABC):
     """Abstract class for motorized stages."""
 
+    @property
     @abstractmethod
-    def get_current_position(self):
+    def current_position(self):
         """Current position of the platform."""
         raise NotImplementedError
 
@@ -649,7 +659,7 @@ class MotorizedStage(Device, ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_arrival_time(self, distance: float):
+    def calculate_arrival_time(self, distance: float):
         """Calculate time it takes for the platform to cover specified
         distance."""
         raise NotImplementedError
@@ -681,27 +691,42 @@ class LTSStage(MotorizedStage):
         if initialize:
             self.initialize()
 
+    @property
     @Device.check_initialized
-    def get_current_position(self):
+    def current_position(self):
         """Current position of the platform in mm."""
         return steps2mm(self.stage.status["position"], self.stage.convunits["pos"])
 
     def initialize(self):
         """Initialize communication with the stage."""
-        if self.rev == "LTS":
-            self.stage = LTS(serial_number=self.serial_number, home=False)
-        elif self.rev == "LTSC":
-            self.stage = LTSC(serial_number=self.serial_number, home=False)
-        self._is_initialized = True
+        try:
+            if self.rev == "LTS":
+                self.stage = LTS(serial_number=self.serial_number, home=False)
+            elif self.rev == "LTSC":
+                self.stage = LTSC(serial_number=self.serial_number, home=False)
+            self._is_initialized = True
+        except serial.SerialException:
+            raise DeviceNotFoundError(
+                device_name=self.device_name, msg="Stage not detected."
+            )
 
     @Device.check_initialized
     def configure(self, configuration: LTSConfiguration):
-        """Configure the source"""
-        # TODO: first add methods to LTS for configuration
-        raise NotImplementedError
+        """Configure the stage"""
+        # TODO: test with physical device
+        # TODO: add configuration of jog, home, and move?
+        if not self.is_requested_configuration_valid(configuration):
+            raise ValueError("Wrong configuration value.")
+        self.stage._loop.call_later(
+            0.15,
+            self.stage.set_velocity_params,
+            mm2steps(LTSConfiguration.acceleration, self.stage.convunits["acc"]),
+            mm2steps(LTSConfiguration.velocity, self.stage.convunits["vel"]),
+        )
+        sleep(0.2)
 
     @Device.check_initialized
-    def get_arrival_time(self, distance: float):
+    def calculate_arrival_time(self, distance: float):
         """Calculate time it takes for the platform to cover specified
         distance."""
         s_ru, t_ru = calc_startposmod(stage=self.stage)
@@ -717,6 +742,32 @@ class LTSStage(MotorizedStage):
         else:
             return 2 * t_ru * (distance - 2 * s_ru) / max_velocity
 
+    @property
+    def current_configuration(self):
+        return LTSConfiguration(
+            velocity=self.stage.velparams["max_velocity"],
+            acceleration=self.stage.velparams["acceleration"],
+        )
+
+    @Device.check_initialized
+    def is_request_position_valid(self, requested_position: float | int) -> bool:
+        min_pos = self.stage.physicallimsmm["minpos"]
+        max_pos = self.stage.physicallimsmm["maxpos"]
+        return requested_position >= min_pos and requested_position <= max_pos
+
+    @Device.check_initialized
+    def is_requested_configuration_valid(
+        self, requested_configuration: LTSConfiguration
+    ) -> bool:
+        max_vel = self.stage.physicallimsmm["maxdrivevel"]
+        max_acc = self.stage.physicallimsmm["maxacc"]
+        return (
+            requested_configuration.acceleration <= max_acc
+            and requested_configuration.acceleration > 0.0
+            and requested_configuration.velocity <= max_vel
+            and requested_configuration.velocity > 0.0
+        )
+
     @Device.check_initialized
     async def home(self):
         """Home the stage asynchronously."""
@@ -725,6 +776,8 @@ class LTSStage(MotorizedStage):
     @Device.check_initialized
     async def go_to(self, destination: float):
         """Go to desired position asynchronously."""
+        if not self.is_request_position_valid(destination):
+            raise ValueError("Invalid destination value.")
         self.stage.aso_move_absolute(
             position=mm2steps(destination, self.stage.convunits["pos"])
         )
@@ -766,32 +819,57 @@ class MockLTSStage(LTSStage):
     """Mock-up class for motorized stages."""
 
     # TODO: add temporal simulation of movement?
+    class MockStage:
+        def __init__(self):
+            self.velparams = {"max_velocity": 20.0, "acceleration": 20.0}
+            self.physicallimsmm = {
+                "minpos": 0.0,
+                "maxpos": 300.0,
+                "maxvel": 50.0,
+                "maxdrivevel": 40,
+                "maxacc": 50,
+            }
 
     def __init__(self, serial_number: str, rev: str = "LTS", initialize: bool = False):
-        self.current_position = 0.0
+        self._current_position = 0.0
         self.serial_number = serial_number
         self.rev = rev
         self._is_initialized = False
+        # self.velparams = {"max_velocity": 20.0, "acceleration": 20.0}
+        # self.physiclalimsmm = {
+        #     "minpos": 0.0,
+        #     "maxpos": 300.0,
+        #     "maxvel": 50.0,
+        #     "maxdrivevel": 40,
+        #     "maxacc": 50,
+        # }
+        # TODO: jog params
+        # TODO: move params
+        # TODO: homing params
         if initialize:
             self.initialize()
 
+    @property
     @Device.check_initialized
-    def get_current_position(self):
+    def current_position(self):
         """Current position of the platform."""
-        return self.current_position
+        return self._current_position
 
     def initialize(self):
         """Initialize the stage."""
+        self.stage = MockLTSStage.MockStage()
         self._is_initialized = True
 
     @Device.check_initialized
     def configure(self, configuration: LTSConfiguration):
-        """Configure the source"""
-        # TODO: update this after making changes to LTSStage
-        raise NotImplementedError
+        """Configure the stage"""
+        if not self.is_requested_configuration_valid(configuration):
+            raise ValueError("Wrong configuration value.")
+        self.stage.velparams["acceleration"] = configuration.acceleration
+        self.stage.velparams["max_velocity"] = configuration.velocity
 
     @Device.check_initialized
-    def get_arrival_time(self, distance: float):
+    def calculate_arrival_time(self, distance: float):
         """Calculate time it takes for the platform to cover specified
         distance."""
         max_velocity = 20.0
@@ -805,15 +883,24 @@ class MockLTSStage(LTSStage):
         else:
             return 2 * t_ru * (distance - 2 * s_ru) / max_velocity
 
+    @property
+    def current_configuration(self):
+        return LTSConfiguration(
+            velocity=self.stage.velparams["max_velocity"],
+            acceleration=self.stage.velparams["acceleration"],
+        )
+
     @Device.check_initialized
     async def home(self):
         """Home the stage asynchronously."""
-        self.current_position = 0.0
+        self._current_position = 0.0
 
     @Device.check_initialized
     async def go_to(self, destination: float):
         """Go to desired position asynchronously."""
-        self.current_position = destination
+        if not self.is_request_position_valid(destination):
+            raise ValueError("Invalid destination value.")
+        self._current_position = destination
 
     @property
     def is_initialized(self) -> bool:

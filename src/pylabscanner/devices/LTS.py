@@ -69,7 +69,7 @@ class LTS(aptdevice_motor.APTDevice_Motor):
         self.jogparams = self.jogparams_[0][0]
         """Alias to first bay/channel of :data:`APTDevice_Motor.jogparams_`"""
 
-        self.physiclalimsmm = {
+        self.physicallimsmm = {
             "minpos": 0.0,
             "maxpos": 300.0,
             "maxvel": 50.0,
@@ -86,13 +86,13 @@ class LTS(aptdevice_motor.APTDevice_Motor):
         """
 
         self.physiclalimsmu = {
-            "minpos": mm2steps(self.physiclalimsmm["minpos"], self.convunits["pos"]),
-            "maxpos": mm2steps(self.physiclalimsmm["maxpos"], self.convunits["pos"]),
-            "maxvel": mm2steps(self.physiclalimsmm["maxvel"], self.convunits["vel"]),
+            "minpos": mm2steps(self.physicallimsmm["minpos"], self.convunits["pos"]),
+            "maxpos": mm2steps(self.physicallimsmm["maxpos"], self.convunits["pos"]),
+            "maxvel": mm2steps(self.physicallimsmm["maxvel"], self.convunits["vel"]),
             "maxdrivevel": mm2steps(
-                self.physiclalimsmm["maxdrivevel"], self.convunits["vel"]
+                self.physicallimsmm["maxdrivevel"], self.convunits["vel"]
             ),
-            "maxacc": mm2steps(self.physiclalimsmm["maxacc"], self.convunits["acc"]),
+            "maxacc": mm2steps(self.physicallimsmm["maxacc"], self.convunits["acc"]),
         }
 
         # Enable the stage

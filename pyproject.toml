@@ -51,5 +51,6 @@ testpaths = ["tests"]
 # pythonpath = ["src"]
 markers = [
     "detector: tests that use detector",
-    "device: testing features of devices"
+    "device: testing features of devices",
+    "stage: tests that use stage motors"
 ]

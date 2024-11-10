@@ -259,7 +259,7 @@ class ActionPtByPt(Action):
                 self.measrng.max() - self.measrng.min()
             )  # TODO: shouldn't be here a division by the number of points?
             self.ta = pts_per_line * calc_movetime(stage=self.stage, dist=dist_btw_meas)
-            self.ta += self.detector.get_ta() * self.measrng.size
+            self.ta += self.detector.acquisition_time() * self.measrng.size
         return self.ta
 
 
