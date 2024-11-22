@@ -1,21 +1,16 @@
 #!/usr/bin/env python
 import asyncio
-import logging
-import threading
-import traceback
 from abc import ABC, abstractmethod
 from enum import Enum
-from queue import Empty, Queue
 from time import sleep, time
 from typing import List, Tuple
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from numpy import ndarray
 from tqdm import tqdm
 
-from .devices import BoloLine, Detector, Source, calc_startposmod
+from .devices import Detector, Source, calc_startposmod
 from .devices.LTS import LTS, aso_home_devs, aso_move_devs, mm2steps, steps2mm
 
 
@@ -672,129 +667,3 @@ class ScanRoutine:
 
         else:
             raise NotImplementedError("Single line scan not implemented yet")
-
-
-# LiveView
-class LiveView:
-    """Live reading from THz bolometer line and plotting.
-    Implementation uses separate threads for detector control, plotting,
-    and handling standard input to identify when to stop the program.
-    """
-
-    def __init__(self, detector: BoloLine, logger: logging.Logger = None) -> None:
-        """Initialize all threads necessary for concurrent detector control,
-        plotting and reading from standard input (to stop the execution).
-
-        Args:
-            detector (BoloLine): detector handle
-            logger (logging.Logger, optional): logger handle. Defaults to None.
-        """
-        self.detector = detector
-        self.measurements = Queue()
-        self.shutdown_event = threading.Event()
-        if logger is None:
-            self._log = logging.getLogger(__name__)
-        else:
-            self._log = logger
-
-        self.detector_thread = threading.Thread(
-            target=self._detector_controller,
-            args=(self.shutdown_event, self.measurements),
-            name="detector_controller",
-        )
-        self.interrupt_thread = threading.Thread(
-            target=self._interrupt_controller,
-            args=(self.shutdown_event,),
-            name="interrupt_controller",
-        )
-        threading.excepthook = self._interrupt_hook
-
-    def start(self) -> None:
-        """Start all threads and join them on the finish.
-
-        The plotting controller needs to be in the main thread
-        (otherwise Tk has some problems).
-        """
-        self.detector_thread.start()
-        self.interrupt_thread.start()
-        self._plot_controller(self.shutdown_event, self.measurements)
-        self.detector_thread.join()
-        self.interrupt_thread.join()
-
-    def _interrupt_hook(self, args):
-        self._log.error(
-            f"Thread {args.thread.getName()} failed with exception " f"{args.exc_value}"
-        )
-        self._log.error(f"Traceback{traceback.print_tb(args.exc_traceback)}")
-        self._log.error("Shutting down")
-        self.shutdown_event.set()
-
-    def _detector_controller(self, shutdown_event: threading.Event, queue: Queue):
-        while True:
-            # sleep(2)
-            # y = np.random.random([10,1])
-            measurement = self.detector.measure()
-            det_no_samp = len(measurement)
-            det_freq = self.detector.get_freq() * 1000
-            queue.put(
-                {"data": measurement, "det_no_samp": det_no_samp, "det_freq": det_freq}
-            )
-            if shutdown_event.is_set():
-                break
-        print("Detector thread finished")
-
-    def _interrupt_controller(self, shutdown_event: threading.Event) -> None:
-        input("Press ENTER to close LiveView")
-        shutdown_event.set()
-
-    def _plot_controller(self, shutdown_event: threading.Event, queue: Queue):
-        plt.set_loglevel("error")
-        logging.getLogger("PIL").setLevel(logging.ERROR)
-        plt.ion()
-        y = np.random.random([10, 1])
-        yx = y
-        fft = y
-        fftx = y
-        plt.subplots(
-            nrows=2,
-            ncols=1,
-        )
-        while True:
-            try:
-                payload = self.measurements.get_nowait()
-                y = payload["data"]
-                det_no_samp = payload["det_no_samp"]
-                det_freq = payload["det_freq"]
-                dt = 1 / det_freq
-                yx = np.arange(0, det_no_samp * dt, dt)
-                fft = np.abs(np.fft.rfft(y))
-                fftx = np.fft.rfftfreq(len(y), dt)
-                # self._log.debug(f"step: {dt}")
-            except Empty:
-                pass
-
-            # plot data
-
-            plt.subplot(211)
-            plt.plot(yx, y)
-            plt.ylabel("Amplitude [V]")
-            plt.xlabel("Time [s]")
-            plt.ylim(bottom=0, top=3.3)
-
-            # plot fft
-            plt.subplot(212)
-            plt.plot(fftx, fft)
-            plt.ylabel("Amplitude [V]")
-            plt.xlabel("Frequency [Hz]")
-            plt.ylim(bottom=0.0, top=5.0)
-            # plt.xlim(left=0.0, right=1050)
-            plt.xlim(left=0.0)
-
-            plt.draw()
-            plt.pause(0.0001)
-            plt.clf()
-            if shutdown_event.is_set():
-                plt.ioff()
-                plt.close("all")
-                break
-        print("Plot thread finished")

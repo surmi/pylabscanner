@@ -8,6 +8,7 @@ from pylabscanner.devices import (
     BoloMsgFreq,
     BoloMsgSamples,
     BoloMsgSensor,
+    DeviceManager,
     DeviceNotFoundError,
     DeviceNotInitialized,
     LTSConfiguration,
@@ -192,3 +193,10 @@ class TestStage:
         configuration = LTSConfiguration(acceleration=-20, velocity=-20)
         with pytest.raises(ValueError):
             stage.configure(configuration=configuration)
+
+
+@pytest.mark.detector
+@pytest.mark.stage
+@pytest.mark.device
+class TestDeviceManager:
+    pass

@@ -1,11 +1,17 @@
+import logging
 import math
+import threading
+import traceback
 from abc import ABC, abstractmethod
+from asyncio import TaskGroup, wait_for
 from dataclasses import dataclass
 from enum import Enum
 from functools import wraps
+from queue import Empty, Queue
 from time import sleep
 from typing import List
 
+import matplotlib.pyplot as plt
 import numpy as np
 import serial
 from serial.tools import list_ports
@@ -911,3 +917,236 @@ class MockLTSStage(LTSStage):
         if self.rev:
             return f"Thorlabs {self.rev} stage"
         return "Thorlabs stage"
+
+
+class LiveView:
+    """Live reading from THz bolometer line and plotting.
+    Implementation uses separate threads for detector control, plotting,
+    and handling standard input to identify when to stop the program.
+    """
+
+    def __init__(self, detector: BoloLine, logger: logging.Logger = None) -> None:
+        """Initialize all threads necessary for concurrent detector control,
+        plotting and reading from standard input (to stop the execution).
+
+        Args:
+            detector (BoloLine): detector handle
+            logger (logging.Logger, optional): logger handle. Defaults to None.
+        """
+        self.detector = detector
+        self.measurements = Queue()
+        self.shutdown_event = threading.Event()
+        if logger is None:
+            self._log = logging.getLogger(__name__)
+        else:
+            self._log = logger
+
+        self.detector_thread = threading.Thread(
+            target=self._detector_controller,
+            args=(self.shutdown_event, self.measurements),
+            name="detector_controller",
+        )
+        self.interrupt_thread = threading.Thread(
+            target=self._interrupt_controller,
+            args=(self.shutdown_event,),
+            name="interrupt_controller",
+        )
+        threading.excepthook = self._interrupt_hook
+
+    def start(self) -> None:
+        """Start all threads and join them on the finish.
+
+        The plotting controller needs to be in the main thread
+        (otherwise Tk has some problems).
+        """
+        self.detector_thread.start()
+        self.interrupt_thread.start()
+        self._plot_controller(self.shutdown_event, self.measurements)
+        self.detector_thread.join()
+        self.interrupt_thread.join()
+
+    def _interrupt_hook(self, args):
+        self._log.error(
+            f"Thread {args.thread.getName()} failed with exception " f"{args.exc_value}"
+        )
+        self._log.error(f"Traceback{traceback.print_tb(args.exc_traceback)}")
+        self._log.error("Shutting down")
+        self.shutdown_event.set()
+
+    def _detector_controller(self, shutdown_event: threading.Event, queue: Queue):
+        while True:
+            # sleep(2)
+            # y = np.random.random([10,1])
+            measurement = self.detector.measure()
+            det_no_samp = len(measurement)
+            det_freq = self.detector.get_freq() * 1000
+            queue.put(
+                {"data": measurement, "det_no_samp": det_no_samp, "det_freq": det_freq}
+            )
+            if shutdown_event.is_set():
+                break
+        print("Detector thread finished")
+
+    def _interrupt_controller(self, shutdown_event: threading.Event) -> None:
+        input("Press ENTER to close LiveView")
+        shutdown_event.set()
+
+    def _plot_controller(self, shutdown_event: threading.Event, queue: Queue):
+        plt.set_loglevel("error")
+        logging.getLogger("PIL").setLevel(logging.ERROR)
+        plt.ion()
+        y = np.random.random([10, 1])
+        yx = y
+        fft = y
+        fftx = y
+        plt.subplots(
+            nrows=2,
+            ncols=1,
+        )
+        while True:
+            try:
+                payload = self.measurements.get_nowait()
+                y = payload["data"]
+                det_no_samp = payload["det_no_samp"]
+                det_freq = payload["det_freq"]
+                dt = 1 / det_freq
+                yx = np.arange(0, det_no_samp * dt, dt)
+                fft = np.abs(np.fft.rfft(y))
+                fftx = np.fft.rfftfreq(len(y), dt)
+                # self._log.debug(f"step: {dt}")
+            except Empty:
+                pass
+
+            # plot data
+
+            plt.subplot(211)
+            plt.plot(yx, y)
+            plt.ylabel("Amplitude [V]")
+            plt.xlabel("Time [s]")
+            plt.ylim(bottom=0, top=3.3)
+
+            # plot fft
+            plt.subplot(212)
+            plt.plot(fftx, fft)
+            plt.ylabel("Amplitude [V]")
+            plt.xlabel("Frequency [Hz]")
+            plt.ylim(bottom=0.0, top=5.0)
+            # plt.xlim(left=0.0, right=1050)
+            plt.xlim(left=0.0)
+
+            plt.draw()
+            plt.pause(0.0001)
+            plt.clf()
+            if shutdown_event.is_set():
+                plt.ioff()
+                plt.close("all")
+                break
+        print("Plot thread finished")
+
+
+@dataclass
+class StageInitParams:
+    serial_number: str
+    rev: str = "LTS"
+    initialize: bool = False
+
+
+@dataclass
+class DetectorInitParams:
+    idVendor: str = "03EB"
+    idProduct: str = "2404"
+    sensor: BoloMsgSensor = BoloMsgSensor.FIRST
+    samples: BoloMsgSamples = BoloMsgSamples.S100
+    freq: BoloMsgFreq = BoloMsgFreq.F1
+    initialize: bool = False
+
+
+class DeviceManager:
+    def __init__(
+        self,
+        stage_init_params: dict[str, StageInitParams],
+        detector_init_params: DetectorInitParams,
+        stage_configurations: None | dict[str, LTSConfiguration],
+        detector_configuration: None | BoloLineConfiguration,
+    ):
+        self.stages: dict[str, LTSStage]
+        for label in stage_init_params:
+            self.stages[label] = LTSStage(
+                stage_init_params.serial_number,
+                stage_init_params.rev,
+                stage_init_params.initialize,
+            )
+        self.detector = BoloLine(
+            idProduct=detector_init_params.idProduct,
+            idVendor=detector_init_params.idVendor,
+            sensor=detector_init_params.sensor,
+            samples=detector_init_params.samples,
+            freq=detector_init_params.freq,
+            initialize=detector_init_params.initialize,
+        )
+        self.configure(
+            detector_configuration=detector_configuration,
+            stage_configurations=stage_configurations,
+        )
+
+    def initialize(self):
+        for label in self.stages:
+            self.stages[label].initialize()
+        self.detector.initialize()
+
+    def configure(
+        self,
+        detector_configuration: None | BoloLineConfiguration = None,
+        stage_configurations: None | dict[str, LTSConfiguration] = None,
+    ):
+        if detector_configuration is not None:
+            self.detector.configure(configuration=detector_configuration)
+        if stage_configurations is not None and stage_configurations:
+            for label in stage_configurations:
+                self.stages[label].configure(configuration=stage_configurations[label])
+
+    @property
+    def current_configuration(self):
+        res = {"detector": self.detector.current_configuration()}
+        for label in self.stages:
+            res[label] = self.stages[label].current_configuration()
+        return res
+
+    def home(self, stage_label: str | list[str]):
+        if isinstance(stage_label, str):
+            stage_label = [stage_label]
+        async with TaskGroup() as tg:
+            tasks = []
+            for label in stage_label:
+                stage = self.stages[label]
+                tasks.append(
+                    tg.create_task(
+                        wait_for(stage.home()), name=f"Homing stage with label {label}"
+                    ),
+                )
+
+    # move_axes (speficified by label)
+    def move_stage(self, stage_destination: dict[str, float]):
+        async with TaskGroup() as tg:
+            tasks = []
+            for label in stage_destination:
+                stage = self.stages[label]
+                destination = stage_destination[label]
+                tasks.append(
+                    tg.create_task(
+                        wait_for(stage.go_to(destination=destination)),
+                        name=f"Moving stage labeled as {label} to position {destination}",
+                    )
+                )
+
+    # measure
+    def measure(self):
+        return self.detector.measure()
+
+    # live view
+    def live_view(self):
+        lv = LiveView(detector=self.detector)
+        lv.start()
+
+    # TODO:acquisition time (How to get acquisition for specific device?)
+    # TODO:measure series?
