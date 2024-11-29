@@ -8,6 +8,7 @@ from pylabscanner.devices import (
     BoloMsgFreq,
     BoloMsgSamples,
     BoloMsgSensor,
+    DetectorInitParams,
     DeviceManager,
     DeviceNotFoundError,
     DeviceNotInitialized,
@@ -15,6 +16,7 @@ from pylabscanner.devices import (
     LTSStage,
     MockBoloLine,
     MockLTSStage,
+    StageInitParams,
 )
 
 
@@ -199,4 +201,29 @@ class TestStage:
 @pytest.mark.stage
 @pytest.mark.device
 class TestDeviceManager:
-    pass
+    def _define_init_params(self, use_mockups):
+        if use_mockups:
+            return (
+                DetectorInitParams(is_mockup=True),
+                {
+                    "x": StageInitParams(serial_number="123", is_mockup=True),
+                    "y": StageInitParams(serial_number="123", is_mockup=True),
+                    "z": StageInitParams(serial_number="123", is_mockup=True),
+                },
+            )
+        return (
+            DetectorInitParams(),
+            {
+                "x": StageInitParams(serial_number="123"),
+                "y": StageInitParams(serial_number="123"),
+                "z": StageInitParams(serial_number="123"),
+            },
+        )
+
+    def test_manager_initializes(self, mock_devices: bool):
+        detector_params, stage_params = self._define_init_params(mock_devices)
+        manager = DeviceManager(
+            stage_init_params=stage_params,
+            detector_init_params=detector_params,
+        )
+        manager.initialize()

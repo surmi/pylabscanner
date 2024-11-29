@@ -1049,6 +1049,7 @@ class StageInitParams:
     serial_number: str
     rev: str = "LTS"
     initialize: bool = False
+    is_mockup: bool = False
 
 
 @dataclass
@@ -1059,6 +1060,7 @@ class DetectorInitParams:
     samples: BoloMsgSamples = BoloMsgSamples.S100
     freq: BoloMsgFreq = BoloMsgFreq.F1
     initialize: bool = False
+    is_mockup: bool = False
 
 
 class DeviceManager:
@@ -1071,19 +1073,37 @@ class DeviceManager:
     ):
         self.stages: dict[str, LTSStage]
         for label in stage_init_params:
-            self.stages[label] = LTSStage(
-                stage_init_params.serial_number,
-                stage_init_params.rev,
-                stage_init_params.initialize,
+            init_params: StageInitParams = stage_init_params[label]
+            if init_params.is_mockup:
+                self.stages[label] = MockLTSStage(
+                    init_params.serial_number,
+                    init_params.rev,
+                    init_params.initialize,
+                )
+            else:
+                self.stages[label] = LTSStage(
+                    init_params.serial_number,
+                    init_params.rev,
+                    init_params.initialize,
+                )
+        if detector_init_params.is_mockup:
+            self.detector = MockBoloLine(
+                idProduct=detector_init_params.idProduct,
+                idVendor=detector_init_params.idVendor,
+                sensor=detector_init_params.sensor,
+                samples=detector_init_params.samples,
+                freq=detector_init_params.freq,
+                initialize=detector_init_params.initialize,
             )
-        self.detector = BoloLine(
-            idProduct=detector_init_params.idProduct,
-            idVendor=detector_init_params.idVendor,
-            sensor=detector_init_params.sensor,
-            samples=detector_init_params.samples,
-            freq=detector_init_params.freq,
-            initialize=detector_init_params.initialize,
-        )
+        else:
+            self.detector = BoloLine(
+                idProduct=detector_init_params.idProduct,
+                idVendor=detector_init_params.idVendor,
+                sensor=detector_init_params.sensor,
+                samples=detector_init_params.samples,
+                freq=detector_init_params.freq,
+                initialize=detector_init_params.initialize,
+            )
         self.configure(
             detector_configuration=detector_configuration,
             stage_configurations=stage_configurations,
