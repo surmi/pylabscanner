@@ -201,29 +201,63 @@ class TestStage:
 @pytest.mark.stage
 @pytest.mark.device
 class TestDeviceManager:
-    def _define_init_params(self, use_mockups):
-        if use_mockups:
-            return (
-                DetectorInitParams(is_mockup=True),
-                {
-                    "x": StageInitParams(serial_number="123", is_mockup=True),
-                    "y": StageInitParams(serial_number="123", is_mockup=True),
-                    "z": StageInitParams(serial_number="123", is_mockup=True),
-                },
-            )
+    def _define_init_params(self, use_mockups: bool):
         return (
-            DetectorInitParams(),
+            DetectorInitParams(is_mockup=use_mockups),
             {
-                "x": StageInitParams(serial_number="123"),
-                "y": StageInitParams(serial_number="123"),
-                "z": StageInitParams(serial_number="123"),
+                "x": StageInitParams(serial_number="123", is_mockup=use_mockups),
+                "y": StageInitParams(serial_number="123", is_mockup=use_mockups),
+                "z": StageInitParams(serial_number="123", is_mockup=use_mockups),
             },
         )
 
-    def test_manager_initializes(self, mock_devices: bool):
+    def _init_manager(self, mock_devices: bool):
         detector_params, stage_params = self._define_init_params(mock_devices)
         manager = DeviceManager(
             stage_init_params=stage_params,
             detector_init_params=detector_params,
         )
         manager.initialize()
+        return manager
+
+    def test_manager_initializes(self, mock_devices: bool):
+        self._init_manager(mock_devices=mock_devices)
+
+    def test_manager_configures(self, mock_devices: bool):
+        manager = self._init_manager(mock_devices=mock_devices)
+        detector_configuration = BoloLineConfiguration(
+            frequency=BoloMsgFreq.F5,
+            sampling=BoloMsgSamples.S500,
+            sensor_id=BoloMsgSensor.FOURTH,
+        )
+        lts_configuration = LTSConfiguration(velocity=10, acceleration=20)
+        manager.configure(
+            detector_configuration=detector_configuration,
+            stage_configurations={"x", lts_configuration},
+        )
+        current_configuration = manager.current_configuration()
+
+        assert current_configuration["detector"] == detector_configuration
+        assert current_configuration["x"] == lts_configuration
+
+    def test_manager_moves_stages(self, mock_devices: bool):
+        manager = self._init_manager(mock_devices=mock_devices)
+        assert manager.stages["x"].current_position == 0.0
+        destination = 100.0
+        manager.move_stage(stage_destination={"x", destination})
+        assert manager.stages["x"].current_position == destination
+
+    def test_manager_homes_stages(self, mock_devices: bool):
+        manager = self._init_manager(mock_devices=mock_devices)
+        destination = 100.0
+        manager.move_stage(stage_destination={"x", destination})
+        assert manager.stages["x"].current_position == destination
+        manager.home(stage_label="all")
+        assert manager.stages["x"].current_position == 0.0
+
+    def test_manager_measures(self, mock_devices: bool):
+        manager = self._init_manager(mock_devices=mock_devices)
+        detector = manager.detector
+        no_samples = detector.current_configuration.sampling.nsamp
+        data = detector.measure()
+        assert len(data) == no_samples
