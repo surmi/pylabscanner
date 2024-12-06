@@ -1134,7 +1134,10 @@ class DeviceManager:
 
     def home(self, stage_label: str | list[str]):
         if isinstance(stage_label, str):
-            stage_label = [stage_label]
+            if stage_label == "all":
+                stage_label = ["x", "y", "z"]
+            else:
+                stage_label = [stage_label]
         async with TaskGroup() as tg:
             tasks = []
             for label in stage_label:
