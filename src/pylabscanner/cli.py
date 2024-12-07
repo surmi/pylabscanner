@@ -13,7 +13,8 @@ import pandas as pd
 from click.core import ParameterSource
 from serial import SerialException, SerialTimeoutException
 
-from .commands import LineStart, LineType, LiveView, ScanRoutine
+# from .commands import LineStart, LineType, LiveView, ScanRoutine
+from .commands import LineStart, LineType, ScanRoutine
 from .devices import BoloLine, DeviceNotFoundError
 from .devices.LTS import aso_home_devs, aso_move_devs, steps2mm
 from .utils import (
@@ -823,19 +824,19 @@ def liveView(config: Config, det_sens: str, det_samp: str, det_freq: str):
     )
 
     click.echo("Initializing LiveView threads...")
-    try:
-        lv = LiveView(
-            detector=BoloLine(
-                sensor=det_sens, samples=det_samp, freq=det_freq, cold_start=True
-            )
-        )
-    except DeviceNotFoundError as e:
-        config.logger.error("Detector not found on initialization.")
-        config.logger.error(e)
-        click.echo("Bolometer line not detected. Please check connection!")
-        raise click.Abort
+    # try:
+    #     lv = LiveView(
+    #         detector=BoloLine(
+    #             sensor=det_sens, samples=det_samp, freq=det_freq, cold_start=True
+    #         )
+    #     )
+    # except DeviceNotFoundError as e:
+    #     config.logger.error("Detector not found on initialization.")
+    #     config.logger.error(e)
+    #     click.echo("Bolometer line not detected. Please check connection!")
+    #     raise click.Abort
     click.echo("\tInitialized")
 
     click.echo("Running LiveView")
-    lv.start()
+    # lv.start()
     click.echo("LiveView shut down")
