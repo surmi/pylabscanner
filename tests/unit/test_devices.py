@@ -233,9 +233,9 @@ class TestDeviceManager:
         lts_configuration = LTSConfiguration(velocity=10, acceleration=20)
         manager.configure(
             detector_configuration=detector_configuration,
-            stage_configurations={"x", lts_configuration},
+            stage_configurations={"x": lts_configuration},
         )
-        current_configuration = manager.current_configuration()
+        current_configuration = manager.current_configuration
 
         assert current_configuration["detector"] == detector_configuration
         assert current_configuration["x"] == lts_configuration
@@ -244,13 +244,13 @@ class TestDeviceManager:
         manager = self._init_manager(mock_devices=mock_devices)
         assert manager.stages["x"].current_position == 0.0
         destination = 100.0
-        manager.move_stage(stage_destination={"x", destination})
+        manager.move_stage(stage_destination={"x": destination})
         assert manager.stages["x"].current_position == destination
 
     def test_manager_homes_stages(self, mock_devices: bool):
         manager = self._init_manager(mock_devices=mock_devices)
         destination = 100.0
-        manager.move_stage(stage_destination={"x", destination})
+        manager.move_stage(stage_destination={"x": destination})
         assert manager.stages["x"].current_position == destination
         manager.home(stage_label="all")
         assert manager.stages["x"].current_position == 0.0
