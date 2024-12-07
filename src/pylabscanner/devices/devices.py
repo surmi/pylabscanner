@@ -3,7 +3,7 @@ import math
 import threading
 import traceback
 from abc import ABC, abstractmethod
-from asyncio import TaskGroup, wait_for
+from asyncio import TaskGroup, run, wait_for
 from dataclasses import dataclass
 from enum import Enum
 from functools import wraps
@@ -1068,10 +1068,10 @@ class DeviceManager:
         self,
         stage_init_params: dict[str, StageInitParams],
         detector_init_params: DetectorInitParams,
-        stage_configurations: None | dict[str, LTSConfiguration],
-        detector_configuration: None | BoloLineConfiguration,
+        stage_configurations: None | dict[str, LTSConfiguration] = None,
+        detector_configuration: None | BoloLineConfiguration = None,
     ):
-        self.stages: dict[str, LTSStage]
+        self.stages: dict[str, LTSStage] = {}
         for label in stage_init_params:
             init_params: StageInitParams = stage_init_params[label]
             if init_params.is_mockup:
@@ -1127,12 +1127,12 @@ class DeviceManager:
 
     @property
     def current_configuration(self):
-        res = {"detector": self.detector.current_configuration()}
+        res = {"detector": self.detector.current_configuration}
         for label in self.stages:
-            res[label] = self.stages[label].current_configuration()
+            res[label] = self.stages[label].current_configuration
         return res
 
-    def home(self, stage_label: str | list[str]):
+    async def home_async(self, stage_label: str | list[str]):
         if isinstance(stage_label, str):
             if stage_label == "all":
                 stage_label = ["x", "y", "z"]
@@ -1144,12 +1144,14 @@ class DeviceManager:
                 stage = self.stages[label]
                 tasks.append(
                     tg.create_task(
-                        wait_for(stage.home()), name=f"Homing stage with label {label}"
+                        stage.home(), name=f"Homing stage with label {label}"
                     ),
                 )
 
-    # move_axes (speficified by label)
-    def move_stage(self, stage_destination: dict[str, float]):
+    def home(self, stage_label: str | list[str]):
+        run(self.home_async(stage_label=stage_label))
+
+    async def move_stage_async(self, stage_destination: dict[str, float]):
         async with TaskGroup() as tg:
             tasks = []
             for label in stage_destination:
@@ -1157,16 +1159,17 @@ class DeviceManager:
                 destination = stage_destination[label]
                 tasks.append(
                     tg.create_task(
-                        wait_for(stage.go_to(destination=destination)),
+                        stage.go_to(destination=destination),
                         name=f"Moving stage labeled as {label} to position {destination}",
                     )
                 )
 
-    # measure
+    def move_stage(self, stage_destination: dict[str, float]):
+        run(self.move_stage_async(stage_destination=stage_destination))
+
     def measure(self):
         return self.detector.measure()
 
-    # live view
     def live_view(self):
         lv = LiveView(detector=self.detector)
         lv.start()
