@@ -13,9 +13,9 @@ import pandas as pd
 from matplotlib.figure import Figure
 from serial import SerialException
 
-from .commands import LineStart, LineType
 from .devices import BoloMsgFreq, BoloMsgSamples, BoloMsgSensor
 from .devices.LTS import LTS, LTSC, mm2steps
+from .scheduler.commands import LineStart, LineType
 
 
 def init_stages(stageslist: str, stage_no: Dict[str, str]) -> List[LTS]:

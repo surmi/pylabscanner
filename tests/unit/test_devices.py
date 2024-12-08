@@ -2,14 +2,13 @@ import asyncio
 
 import pytest
 
-from pylabscanner.devices import (
+from pylabscanner.devices.devices import (
     BoloLine,
     BoloLineConfiguration,
     BoloMsgFreq,
     BoloMsgSamples,
     BoloMsgSensor,
     DetectorInitParams,
-    DeviceManager,
     DeviceNotFoundError,
     DeviceNotInitialized,
     LTSConfiguration,
@@ -18,6 +17,7 @@ from pylabscanner.devices import (
     MockLTSStage,
     StageInitParams,
 )
+from pylabscanner.devices.manager import DeviceManager
 
 
 @pytest.mark.detector
@@ -197,22 +197,24 @@ class TestStage:
             stage.configure(configuration=configuration)
 
 
+def _define_init_params(use_mockups: bool):
+    return (
+        DetectorInitParams(is_mockup=use_mockups),
+        {
+            "x": StageInitParams(serial_number="123", is_mockup=use_mockups),
+            "y": StageInitParams(serial_number="123", is_mockup=use_mockups),
+            "z": StageInitParams(serial_number="123", is_mockup=use_mockups),
+        },
+    )
+
+
 @pytest.mark.detector
 @pytest.mark.stage
 @pytest.mark.device
 class TestDeviceManager:
-    def _define_init_params(self, use_mockups: bool):
-        return (
-            DetectorInitParams(is_mockup=use_mockups),
-            {
-                "x": StageInitParams(serial_number="123", is_mockup=use_mockups),
-                "y": StageInitParams(serial_number="123", is_mockup=use_mockups),
-                "z": StageInitParams(serial_number="123", is_mockup=use_mockups),
-            },
-        )
 
     def _init_manager(self, mock_devices: bool):
-        detector_params, stage_params = self._define_init_params(mock_devices)
+        detector_params, stage_params = _define_init_params(mock_devices)
         manager = DeviceManager(
             stage_init_params=stage_params,
             detector_init_params=detector_params,
@@ -261,3 +263,14 @@ class TestDeviceManager:
         no_samples = detector.current_configuration.sampling.nsamp
         data = detector.measure()
         assert len(data) == no_samples
+
+    def test_manager_returns_current_position(self, mock_devices: bool):
+        manager = self._init_manager(mock_devices=mock_devices)
+        manager.home(stage_label="all")
+        current_position = manager.current_position
+        expected_position = {"x": 0.0, "y": 0.0, "z": 0.0}
+        assert current_position == expected_position
+        expected_position = {"x": 50.0, "y": 25.0, "z": 15.0}
+        manager.move_stage(stage_destination=expected_position)
+        current_position = manager.current_position
+        assert current_position == expected_position

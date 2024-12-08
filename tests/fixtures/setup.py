@@ -2,8 +2,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from pylabscanner.commands import LineStart, LineType
 from pylabscanner.devices import BoloMsgFreq, BoloMsgSamples, BoloMsgSensor
+from pylabscanner.scheduler.commands import LineStart, LineType
 from pylabscanner.utils import parse_range
 
 
