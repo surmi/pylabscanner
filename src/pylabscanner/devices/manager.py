@@ -133,15 +133,51 @@ class DeviceManager:
         run(self.move_stage_async(stage_destination=stage_destination))
 
     def ta_move_stage(
-        self, destination: dict[str, float], previous_position: dict[str, float] = None
+        self,
+        destination: dict[str, float] | float | None = None,
+        previous_position: dict[str, float] | float | None = None,
+        distance: dict[str, float] | float | None = None,
     ):
+        """Maximum arrival time for selected stage(s).
+        Provide `destination`, `destination`+``previous_position` or `distance`
+        """
+
         if previous_position is None:
             previous_position = self.current_position
+        elif isinstance(previous_position, float):
+            previous_position = {"x": previous_position}
+        if isinstance(destination, float):
+            destination = {"x": destination}
+        if isinstance(distance, float):
+            distance = {"x": distance}
+        if destination is None:
+            if distance is not None:
+                axis_to_iterate = distance.keys()
+            else:
+                raise ValueError(
+                    "If `distance` is None then at least `destination` "
+                    "needs to be not None."
+                )
+        else:
+            axis_to_iterate = destination.keys()
+
         ta = 0
-        for axis_name in destination:
-            distance = abs(destination[axis_name] - previous_position[axis_name])
+        # for axis_name in destination:
+        for axis_name in axis_to_iterate:
+            if distance is None:
+                if destination is None and previous_position is None:
+                    raise ValueError(
+                        "If `distance` is None then at least "
+                        "`destination` needs to be not None."
+                    )
+                axis_distance = abs(
+                    destination[axis_name] - previous_position[axis_name]
+                )
+            else:
+                axis_distance = distance[axis_name]
             ta = max(
-                ta, self.stages[axis_name].calculate_arrival_time(distance=distance)
+                ta,
+                self.stages[axis_name].calculate_arrival_time(distance=axis_distance),
             )
         return ta
 
@@ -169,8 +205,16 @@ class DeviceManager:
             )
         return ta
 
+    @property
+    def ta_measurement(self):
+        return self.detector.acquisition_time
+
     def measure(self):
         return self.detector.measure()
+
+    @property
+    def samples_per_measurement(self):
+        return self.detector._samples.nsamp
 
     def live_view(self):
         lv = LiveView(detector=self.detector)

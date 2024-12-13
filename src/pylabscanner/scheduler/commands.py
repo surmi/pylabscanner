@@ -28,12 +28,15 @@ class LineStart(Enum):
     SNAKE = 2  # start at the end of the previous line
 
 
-class AxisOrder(Enum):
+class StageAxis(Enum):
     """Enum for the order of the axes to be scanned."""
 
-    X = 0
-    Y = 1
-    Z = 2
+    x = 0
+    y = 1
+    z = 2
+
+    def other_names(self):
+        return [i for i in self._member_names_ if i != self.name]
 
 
 class Action(ABC):
@@ -69,7 +72,8 @@ class ActionMoveTo(Action):
     def run(self):
         self.manager.move_stage(self.destination)
 
-    def ta(self, prev_position: List[float] | List[int] | None = None):
+    def ta(self, prev_position: Dict[str, float] | None = None):
+        """`prev_position` set to `None` will use current position"""
         return self.manager.ta_move_stage(
             destination=self.destination, previous_position=prev_position
         )
@@ -106,12 +110,15 @@ class ActionFlyBy(Action):
         stage: LTS,
         detector: Detector,
         measrng: ndarray,
-        order: List[AxisOrder],
+        order: List[StageAxis],
         other_pos: List[float],
         t_ru: float,
         s_ru: float,
         reverse: bool = False,
     ):
+        raise NotImplementedError
+        # ==============================================================
+
         self.stage = stage
         self.detector = detector
         self.measrng = measrng
@@ -171,91 +178,67 @@ class ActionFlyBy(Action):
         self.data["MEASUREMENT"] = measurement
         return self.data
 
+    # TODO: add the ta function as in pt_by_pt
+
 
 class ActionPtByPt(Action):
     """Perform a point-by-point line scan on a stage."""
 
     def __init__(
         self,
-        stage: LTS,
-        detector: Detector,
-        measrng: ndarray,
-        order: List[AxisOrder],
-        other_pos: List[float],
-        reverse: bool = False,
+        movement_axis: StageAxis,
+        measuring_range: ndarray,
+        manager: DeviceManager,
+        starting_position: Dict[str, float],
     ):
-        self.stage = stage
-        self.detector = detector
-        self.measrng = measrng
-        self.reverse = reverse
-        self.order = order
+        self.manager = manager
+        self.measuring_range = measuring_range
+        self.movement_axis = movement_axis
         self.ta = None
-        self.last_position = [0.0, 0.0, 0.0]
+        self.last_position = {"x": 0.0, "y": 0.0, "z": 0.0}
+        self.data = {}
 
-        if self.reverse:
-            self.data = {
-                order[0].name: np.flip(self.measrng),  # TODO: testing
-                # order[0].name: [i for i in reversed(self.measrng)],
-            }
-            self.last_position[self.order[0].value] = np.flip(self.measrng)[-1]
-        else:
-            self.data = {
-                order[0].name: self.measrng,
-            }
-            self.last_position[self.order[0].value] = self.measrng[-1]
-        self.data[order[1].name] = np.full(self.measrng.shape, other_pos[0])
-        self.last_position[self.order[1].value] = self.data[order[1].name]
-        self.data[order[2].name] = np.full(self.measrng.shape, other_pos[1])
-        self.last_position[self.order[2].value] = self.data[order[2].name]
-        # self.data[order[1].name] = [other_pos[0]]*len(self.measrng)
-        # self.data[order[2].name] = [other_pos[1]]*len(self.measrng)
+        # prefill data
+        for ax in self.movement_axis.other_names():
+            self.data[ax] = np.full(self.measuring_range.shape, starting_position[ax])
+        for ax in starting_position:
+            self.last_position[ax] = (
+                self.measuring_range[-1]
+                if ax == self.movement_axis.name
+                else starting_position[ax]
+            )
 
     def __str__(self):
-        if self.reverse:
-            return (
-                f"Point-by-point line scan on stage {self.stage} over range "
-                f"{self.measrng} (reversed)"
-            )
-        else:
-            return (
-                f"Point-by-point line scan on stage {self.stage} over range "
-                f"{self.measrng}"
-            )
+        return (
+            f"Point-by-point line scan on {self.movement_axis.name} axis over range "
+            f"{self.measuring_range} (reversed)"
+        )
 
     def run(self):
-        # move to next point and measure
-        meas_val = []
-        meas_pos = []
-        if self.reverse:
-            for i in reversed(self.measrng):
-                pos = mm2steps(i, self.stage.convunits["pos"])
-                asyncio.run(aso_move_devs(self.stage, pos=pos, waitfinished=True))
-                meas_val.append(self.detector.measure())
-                meas_pos.append(
-                    self.stage.status["position"]
-                )  # TODO: require testing; most probably require conversion
-                print(self.stage.status["position"])
-                # meas_pos.append(i)
-        else:
-            for i in self.measrng:
-                pos = mm2steps(i, self.stage.convunits["pos"])
-                asyncio.run(aso_move_devs(self.stage, pos=pos, waitfinished=True))
-                meas_val.append(self.detector.measure())
-                meas_pos.append(i)
+        spm = self.manager.samples_per_measurement
+        meas_val = np.zeros(shape=(len(self.measuring_range), spm))
+        meas_pos = np.zeros(self.measuring_range.shape)
+        for i, position in enumerate(self.measuring_range):
+            # move to next point and measure
+            self.manager.move_stage({self.movement_axis.name: position})
+            meas_val[i, :] = self.manager.measure()
+            meas_pos[i] = self.manager.current_position[self.movement_axis.name]
 
-        self.data[self.order[0].name] = meas_pos
+        self.data[self.movement_axis.name] = meas_pos
         self.data["MEASUREMENT"] = meas_val
         return self.data
 
     def get_ta(self):
-        # TODO: the same for flyby?
         if self.ta is None:
-            pts_per_line = self.measrng.size - 1
-            dist_btw_meas = (
-                self.measrng.max() - self.measrng.min()
-            )  # TODO: shouldn't be here a division by the number of points?
-            self.ta = pts_per_line * calc_movetime(stage=self.stage, dist=dist_btw_meas)
-            self.ta += self.detector.acquisition_time() * self.measrng.size
+            measurement_acquisition_time = self.manager.ta_measurement
+            self.ta = measurement_acquisition_time
+            previous_position = self.measuring_range[0]
+            for destination in self.measuring_range[1:]:
+                self.ta += self.manager.ta_move_stage(
+                    destination=destination, previous_position=previous_position
+                )
+                self.ta += measurement_acquisition_time
+                previous_position = destination
         return self.ta
 
 

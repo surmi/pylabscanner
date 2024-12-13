@@ -168,6 +168,12 @@ class Detector(Device, ABC):
         """Time of acquisition in seconds."""
         raise NotImplementedError
 
+    @property
+    @abstractmethod
+    def samples_per_measurement(self):
+        """Number of samples returned with single measurement call"""
+        raise NotImplementedError
+
 
 class BoloLine(Detector):
     """Class for reading from line of bolometers by Luvitera.
@@ -553,6 +559,10 @@ class BoloLine(Detector):
     @property
     def device_name(self) -> str:
         return "Luvitera Mini THz Sensor"
+
+    @property
+    def samples_per_measurement(self):
+        return self._samples.nsamp
 
 
 class MockBoloLine(BoloLine):

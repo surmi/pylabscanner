@@ -12,9 +12,9 @@ from .commands import (
     ActionFlyBy,
     ActionMoveTo,
     ActionPtByPt,
-    AxisOrder,
     LineStart,
     LineType,
+    StageAxis,
     calc_movetime,
 )
 
@@ -35,7 +35,7 @@ class ScanScheduler:
         # source: Source,
         manager: DeviceManager,
         ranges: List[ndarray],
-        order: tuple[AxisOrder] = (AxisOrder.X, AxisOrder.Y, AxisOrder.Z),
+        order: tuple[StageAxis] = (StageAxis.X, StageAxis.Y, StageAxis.Z),
         line_type: LineType = LineType.FLYBY,
         line_start: LineStart = LineStart.SNAKE,
         fin_home: bool = True,
