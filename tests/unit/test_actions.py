@@ -28,6 +28,26 @@ class TestAction:
         manager.home("all")
         return manager
 
+    def _assert_measurement_data(
+        self,
+        data: list | np.ndarray,
+        no_measurements: int | None = None,
+        min: float | np.float64 | None = None,
+        max: float | np.float64 | None = None,
+        arr: np.ndarray | None = None,
+    ):
+        if no_measurements is not None:
+            assert len(data) == no_measurements
+        if max is not None:
+            assert np.max(data) == max
+        if min is not None:
+            assert np.min(data) == min
+        if arr is not None:
+            data_sorted = np.sort(data)
+            arr_sorted = np.sort(arr)
+            # NOTE: this will only work for exact values
+            assert np.all(data_sorted == arr_sorted)
+
     def test_move_to(self, mock_devices: bool):
         manager = self._setup_manager(mock_devices=mock_devices)
         destination = {"x": 50.0, "y": 35.0, "z": 10.0}
@@ -48,26 +68,6 @@ class TestAction:
 
     def test_fly_by(self, mock_devices: bool):
         pass
-
-    def _assert_measurement_data(
-        self,
-        data: list | np.ndarray,
-        no_measurements: int | None = None,
-        min: float | np.float64 | None = None,
-        max: float | np.float64 | None = None,
-        arr: np.ndarray | None = None,
-    ):
-        if no_measurements is not None:
-            assert len(data) == no_measurements
-        if max is not None:
-            assert np.max(data) == max
-        if min is not None:
-            assert np.min(data) == min
-        if arr is not None:
-            data_sorted = np.sort(data)
-            arr_sorted = np.sort(arr)
-            # NOTE: this will only work for exact values
-            assert np.all(data_sorted == arr_sorted)
 
     def test_pt_by_pt(self, mock_devices: bool):
         manager = self._setup_manager(mock_devices=mock_devices)

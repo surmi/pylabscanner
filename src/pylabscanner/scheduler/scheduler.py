@@ -62,7 +62,7 @@ class ScanScheduler:
         self.ta = 0.0  # acqusition time estimaiton (whole scan)
         self.ta_act = 0.0  # actual asqusition time
 
-    def build(self):
+    def make_schedule(self):
         """Build the scan routine."""
         # line scan always starts at min
         start_pos = [range.min() for range in self.ranges]

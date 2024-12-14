@@ -212,6 +212,13 @@ class DeviceManager:
     def measure(self):
         return self.detector.measure()
 
+    def measure_series(self, no_measurements: int, interval: float, start_delay: float):
+        return self.detector.measure_series(
+            n=no_measurements,
+            interval=interval,
+            start_delay=start_delay,
+        )
+
     @property
     def samples_per_measurement(self):
         return self.detector._samples.nsamp
