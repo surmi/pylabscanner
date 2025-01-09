@@ -1,15 +1,15 @@
 from time import time
-from typing import List, Tuple
 
 import numpy as np
 import pandas as pd
 from numpy import ndarray
 from tqdm import tqdm
 
-from ..devices.devices import LTS, Detector, Source, calc_startposmod
+from ..devices.devices import calc_startposmod
 from ..devices.manager import DeviceManager
 from .commands import (
     ActionFlyBy,
+    ActionHome,
     ActionMoveTo,
     ActionPtByPt,
     LineStart,
@@ -20,68 +20,86 @@ from .commands import (
 
 
 class ScanScheduler:
-    """Scheduler for scanning with stages.
+    """Scheduler that creates a plan of steps for scanning with stages.
 
-    Call `build()` before running (`run()` method) the routine to build list
+    Call `make_schedule()` before running (`run()` method) the routine to build list
     of steps to perform.
+
+    Changing any of the input parameters results in the plan and if the plan is
+    already scheduled, the plan will be descheduled (will require `make_schedule()`).
     """
 
     # TODO: validate fly-by range has at least 2 points
     # TODO: validate fly-by range can fit in the stage range
     def __init__(
         self,
-        # stages: List[LTS],
-        # detector: Detector,
-        # source: Source,
         manager: DeviceManager,
-        ranges: List[ndarray],
-        order: tuple[StageAxis] = (StageAxis.X, StageAxis.Y, StageAxis.Z),
+        ranges: dict[str, ndarray],
         line_type: LineType = LineType.FLYBY,
         line_start: LineStart = LineStart.SNAKE,
         fin_home: bool = True,
         use_tqdm: bool = True,
     ):
-        # self.stages = stages
-        # self.detector = detector
-        # self.source = source
-        self.manager = manager
-        self.ranges = ranges
+        self._manager = manager
+        self._ranges = ranges
         # in case if range is passed backwards
-        for r in self.ranges:
-            r.sort()
-        self.order = order
+        for k in self._ranges:
+            self._ranges[k].sort()
         self.line_type = line_type
         self.line_start = line_start
         self.fin_home = fin_home
         self.use_tqdm = use_tqdm
-        self.data = pd.DataFrame({"X": [], "Y": [], "Z": [], "MEASUREMENT": []})
 
+        self._init_internal_params()
+
+    def _init_internal_params(self):
+        self.data = {"x": [], "y": [], "z": [], "MEASUREMENT": []}
         self.actions = []
         self.history = []
         self.is_built = False
         self.ta = 0.0  # acqusition time estimaiton (whole scan)
         self.ta_act = 0.0  # actual asqusition time
 
+    @property
+    def manager(self):
+        return self._manager
+
+    @manager.setter
+    def manager(self, value: DeviceManager):
+        self._manager = value
+        if self.is_built:
+            self._init_internal_params()
+
+    @property
+    def ranges(self):
+        return self._ranges
+
+    @ranges.setter
+    def ranges(self, value: dict[str, ndarray]):
+        self._ranges = value
+        if self.is_built:
+            self._init_internal_params()
+
     def make_schedule(self):
         """Build the scan routine."""
-        # line scan always starts at min
-        start_pos = [range.min() for range in self.ranges]
-        # vels = [
-        #     steps2mm(stage.velparams["max_velocity"], stage.convunits["vel"])
-        #     for stage in self.stages
-        # ]
-        t_ru = []
-        s_ru = []
-        for s in self.stages:
-            ss, tt = calc_startposmod(s)
-            s_ru.append(ss)
-            t_ru.append(tt)
 
         # FLYBY ---------------------------------------------------------------
         if self.line_type == LineType.FLYBY:
             raise NotImplementedError(
                 "FlyBy scanning not implemented yet"
             )  # TODO: require update after new changes to pt-by-pt scan will be tested
+            # vels = [
+            #     steps2mm(stage.velparams["max_velocity"], stage.convunits["vel"])
+            #     for stage in self.stages
+            # ]
+            # line scan always starts at min
+            start_pos = {axis: self._ranges[axis].min() for axis in self._ranges}
+            t_ru = []
+            s_ru = []
+            for s in self.stages:
+                ss, tt = calc_startposmod(s)
+                s_ru.append(ss)
+                t_ru.append(tt)
             # go to start position
             # s_ru, t_ru = calc_startposmod(self.stages[0])
             start_pos[0] = start_pos[0] - s_ru[0]
@@ -95,7 +113,7 @@ class ScanScheduler:
                 ActionFlyBy(
                     self.stages[self.order[0].value],
                     self.detector,
-                    self.ranges[self.order[0].value],
+                    self._ranges[self.order[0].value],
                     self.order,
                     start_pos[1:],
                     t_ru[self.order[0].value],
@@ -106,20 +124,20 @@ class ScanScheduler:
             self.ta += calc_movetime(
                 stage=self.stages[self.order[0].value],
                 dist=2 * s_ru[self.order[0].value]
-                + self.ranges[self.order[0].value].max()
-                - self.ranges[self.order[0].value].min(),
+                + self._ranges[self.order[0].value].max()
+                - self._ranges[self.order[0].value].min(),
             )
 
             # if order[1] or order[2] is bigger than 1,
             # move correct iterator by one and do a for loop.
             # Otherwise this is a single line scan and loop is not necessary.
             if (
-                len(self.ranges[self.order[1].value]) > 1
-                or len(self.ranges[self.order[2].value]) > 1
+                len(self._ranges[self.order[1].value]) > 1
+                or len(self._ranges[self.order[2].value]) > 1
             ):
                 # reduce range by one (one line already done)
-                range_2 = self.ranges[self.order[2].value]
-                range_1 = self.ranges[self.order[1].value]
+                range_2 = self._ranges[self.order[2].value]
+                range_1 = self._ranges[self.order[1].value]
                 if len(range_1) > 1:
                     range_1 = range_1[1:]
                 else:
@@ -134,14 +152,14 @@ class ScanScheduler:
                             if reverse:
                                 # stage is at min of order[0] range
                                 new_line_pos[self.order[0].value] = (
-                                    self.ranges[self.order[0].value].min()
+                                    self._ranges[self.order[0].value].min()
                                     - s_ru[self.order[0].value]
                                 )
                                 pass
                             else:
                                 # stage is at max of order[0] range
                                 new_line_pos[self.order[0].value] = (
-                                    self.ranges[self.order[0].value].max()
+                                    self._ranges[self.order[0].value].max()
                                     + s_ru[self.order[0].value]
                                 )
 
@@ -151,7 +169,7 @@ class ScanScheduler:
                             reverse = not reverse
                         elif self.line_start == LineStart.CR:
                             new_line_pos[self.order[0].value] = (
-                                self.ranges[self.order[0].value].min()
+                                self._ranges[self.order[0].value].min()
                                 - s_ru[self.order[0].value]
                             )
                             new_line_pos[self.order[1].value] = j
@@ -165,7 +183,7 @@ class ScanScheduler:
                             ActionFlyBy(
                                 self.stages[self.order[0].value],
                                 self.detector,
-                                self.ranges[self.order[0].value],
+                                self._ranges[self.order[0].value],
                                 self.order,
                                 [j, i],
                                 t_ru[self.order[0].value],
@@ -176,12 +194,12 @@ class ScanScheduler:
                         self.ta += calc_movetime(
                             stage=self.stages[self.order[0].value],
                             dist=2 * s_ru
-                            + self.ranges[self.order[0].value].max()
-                            - self.ranges[self.order[0].value].min(),
+                            + self._ranges[self.order[0].value].max()
+                            - self._ranges[self.order[0].value].min(),
                         )
 
         elif self.line_type == LineType.PTBYPT:
-            self._build_line_scans(start_line_pos=start_pos)
+            self._build_line_scans()
             # # go to start position
             # self.actions.append(ActionMoveTo(self.stages, start_pos))
             # maxind = max(range(len(start_pos)), key=start_pos.__getitem__)
@@ -285,16 +303,15 @@ class ScanScheduler:
             )
 
         if self.fin_home:
-            # TODO: update accordingly if everything works fine
-            self.actions.append(ActionMoveTo(self.stages, [0, 0, 0]))
-            maxdists = [r.max() for r in self.ranges]
-            maxind = max(range(len(maxdists)), key=maxdists.__getitem__)
-            self.ta += calc_movetime(stage=self.stages[maxind], dist=max(maxdists))
+            home_action = ActionHome(self._manager)
+            self.actions.append(home_action)
+            self.ta += home_action.ta()
         self.is_built = True
 
     def run(self):
         if not self.is_built:
             raise Exception("Scan routine not built.")
+
         # start the routine
         start_time = time()
         if self.use_tqdm:
@@ -303,87 +320,109 @@ class ScanScheduler:
             planned_actions = self.actions
         for action in planned_actions:
             # add to history
-            self.history.append(str(action))
             d = action.run()
-            self.data = pd.concat([self.data, pd.DataFrame(data=d)], ignore_index=True)
+            if d is not None:
+                for k in self.data:
+                    self.data[k].extend(d[k])
+
+            self.history.append(str(action))
         stop_time = time()
+        self.data = pd.DataFrame(data=self.data)
         self.ta_act = stop_time - start_time
         return self.data
 
     def _calculate_starting_position(
-        self, other_axis_positions: Tuple[float], reverse: bool
+        self, other_axis_positions: dict[str, float], scan_axis: str, reverse: bool
     ):
         """`other_axis_position` in the same order as `self.order`"""
-        j, i = other_axis_positions
-        starting_position = [0.0] * 3
+        starting_position = {}
         if self.line_start == LineStart.SNAKE:
             if reverse:
-                # stage is at min of order[0] range
-                starting_position[self.order[0].value] = self.ranges[
-                    self.order[0].value
-                ].min()
-                pass
+                starting_position[scan_axis] = self._ranges[scan_axis][-1]
             else:
-                # stage is at max of order[0] range
-                starting_position[self.order[0].value] = self.ranges[
-                    self.order[0].value
-                ].max()
+                starting_position[scan_axis] = self._ranges[scan_axis][0]
 
-            starting_position[self.order[1].value] = j
-            starting_position[self.order[2].value] = i
-
-            reverse = not reverse
         elif self.line_start == LineStart.CR:
-            starting_position[self.order[0].value] = self.ranges[
-                self.order[0].value
-            ].min()
-            starting_position[self.order[1].value] = j
-            starting_position[self.order[2].value] = i
+            starting_position[scan_axis] = self._ranges[scan_axis][0]
+
+        for axis_name in other_axis_positions:
+            starting_position[axis_name] = other_axis_positions[axis_name]
+
         return starting_position
 
-    def _build_line_scans(self, start_line_pos: List[np.float64]):
-        # if order[1] or order[2] is bigger than 1,
-        # move correct iterator by one and do a for loop.
-        # Otherwise this is a single line scan and loop is not necessary.
+    def _scan_dimensionality(self):
+        """Identify dimensionality of the scan"""
+        dimensionality = 0
+        for axis_name in StageAxis.ordered_names():
+            range = self.ranges.get(axis_name, np.zeros(shape=1))
+            if len(range) > 1:
+                dimensionality += 1
+        return dimensionality
+
+    def _axis_order(self):
+        """Identify order of axis for definition of steps"""
+        order = []
+        rest = []
+        for axis_name in StageAxis.ordered_names():
+            range = self.ranges.get(axis_name, np.zeros(shape=1))
+            if len(range) > 1:
+                order.append(axis_name)
+            else:
+                rest.append(axis_name)
+        for el in rest:
+            order.append(el)
+        return order
+
+    def _build_line_scans(self):
         reverse = False
-        previous_position = [stage.status["position"] for stage in self.stages]
-        if (
-            len(self.ranges[self.order[1].value]) > 1
-            or len(self.ranges[self.order[2].value]) > 1
-        ):
-            range_2 = self.ranges[self.order[2].value]
-            range_1 = self.ranges[self.order[1].value]
+        previous_position = self._manager.home_position
+        axis_order = self._axis_order()
+        if self._scan_dimensionality() == 2:
+            step_axis = axis_order[1]
+            step_range = self._ranges[step_axis]
+            scan_axis = axis_order[0]
+            scan_range = self._ranges[scan_axis]
+            static_axis = axis_order[2]
 
-            # move to the beginning of the next line, do the line
-            for i in range_2:
-                for j in range_1:
-                    # go to the starting position of next line
-                    starting_position_action = ActionMoveTo(self.stages, start_line_pos)
-                    self.actions.append(starting_position_action)
-                    self.ta += starting_position_action.ta(
-                        prev_position=previous_position
-                    )
+            # move to the beginning of the next line and then do the line
+            for i in step_range:
+                # calculate new starting position
+                other_axis_position = {
+                    static_axis: self._ranges[static_axis][0],
+                    step_axis: i,
+                }
+                start_line_pos = self._calculate_starting_position(
+                    other_axis_positions=other_axis_position,
+                    scan_axis=scan_axis,
+                    reverse=reverse,
+                )
 
-                    # do the line
-                    line_action = ActionPtByPt(
-                        self.stages[self.order[0].value],
-                        self.detector,
-                        self.ranges[self.order[0].value],
-                        self.order,
-                        [j, i],
-                        reverse=reverse,
-                    )
-                    self.actions.append(line_action)
-                    self.ta += line_action.get_ta()
+                # go to the starting position of next line
+                starting_position_action = ActionMoveTo(
+                    manager=self._manager, destination=start_line_pos
+                )
+                self.actions.append(starting_position_action)
+                self.ta += starting_position_action.ta(prev_position=previous_position)
 
-                    # calculate new starting position and set previous
-                    start_line_pos = self._calculate_starting_position(
-                        other_axis_positions=(j, i), reverse=reverse
-                    )
-                    previous_position = line_action.last_position
+                # do the line
+                if reverse:
+                    action_range = np.flip(scan_range)
+                else:
+                    action_range = scan_range
+                line_action = ActionPtByPt(
+                    movement_axis=StageAxis[scan_axis],
+                    measuring_range=action_range,
+                    manager=self._manager,
+                    starting_position=start_line_pos,
+                )
+                self.actions.append(line_action)
+                self.ta += line_action.get_ta()
 
-                    # reverse the line
-                    reverse = not reverse
+                # set previous position
+                previous_position = line_action.last_position
+
+                # reverse the line
+                reverse = not reverse
 
         else:
-            raise NotImplementedError("Single line scan not implemented yet")
+            raise NotImplementedError("Single line and 3D scans not implemented yet")

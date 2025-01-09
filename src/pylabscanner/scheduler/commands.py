@@ -1,15 +1,14 @@
 #!/usr/bin/env python
-import asyncio
 from abc import ABC, abstractmethod
-from enum import Enum
+from enum import Enum, IntEnum
 from time import sleep
-from typing import Dict, List
+from typing import Dict
 
 import numpy as np
 from numpy import ndarray
 
-from ..devices.devices import Detector, calc_startposmod
-from ..devices.LTS import LTS, aso_home_devs, aso_move_devs, mm2steps, steps2mm
+from ..devices.devices import calc_startposmod
+from ..devices.LTS import LTS, steps2mm
 from ..devices.manager import DeviceManager
 
 
@@ -28,12 +27,22 @@ class LineStart(Enum):
     SNAKE = 2  # start at the end of the previous line
 
 
-class StageAxis(Enum):
-    """Enum for the order of the axes to be scanned."""
+class StageAxis(IntEnum):
+    """Enum for the order of the axes to be scanned.
+
+    All values are next integers starting at 0 and signify the order."""
 
     x = 0
     y = 1
     z = 2
+
+    @staticmethod
+    def ordered_names():
+        n = len(StageAxis.__members__)
+        order = ["a"] * n
+        for name, member in StageAxis.__members__.items():
+            order[member] = name
+        return order
 
     def other_names(self):
         return [i for i in self._member_names_ if i != self.name]
@@ -87,8 +96,7 @@ class ActionHome(Action):
         self.stage_label = stage_label
 
     def __str__(self) -> str:
-        stage_str = ", ".join([axis_name for axis_name in self.destination])
-        return f"Homing stage(s) {stage_str}"
+        return f"Homing stage(s) {self.stage_label}"
 
     def run(self):
         self.manager.home(self.stage_label)
@@ -276,28 +284,6 @@ class ActionPtByPt(Action):
                 self.ta += measurement_acquisition_time
                 previous_position = destination
         return self.ta
-
-
-# def calc_startposmod(stage: LTS) -> Tuple[float, float]:
-#     """Calculate modification of position due to the stage needing to ramp up
-#     to constant velocity.
-
-#     Args:
-#         stage (APTDevice_Motor): stage object from which the velocity
-#             parameters are taken.
-
-#     Returns:
-#         tuple(float, float): (ramp up distance, ramp up time).
-#     """
-#     vel_params = stage.velparams
-#     max_velocity = steps2mm(vel_params["max_velocity"], stage.convunits["vel"])
-#     acceleration = steps2mm(vel_params["acceleration"], stage.convunits["acc"])
-
-#     t_ru = max_velocity / acceleration
-#     s_ru = 1 / 2 * float(str(acceleration)) * float(str(t_ru)) ** 2
-#     s_ru = math.ceil(s_ru)
-
-#     return s_ru, t_ru
 
 
 def calc_movetime(stage: LTS, dist: float) -> float:

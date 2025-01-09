@@ -695,6 +695,7 @@ class LTSStage(MotorizedStage):
     def __init__(self, serial_number: str, rev: str = "LTS", initialize: bool = False):
         self.serial_number = serial_number
         self.rev = rev
+        self.home_position = 0.0
         if self.rev not in ("LTS", "LTSC"):
             raise ValueError('rev argument can only be "LTS" or "LTSC"')
         self._is_initialized = False
@@ -858,6 +859,7 @@ class MockLTSStage(LTSStage):
         self.serial_number = serial_number
         self.rev = rev
         self._is_initialized = False
+        self.home_position = 0.0
         # self.velparams = {"max_velocity": 20.0, "acceleration": 20.0}
         # self.physiclalimsmm = {
         #     "minpos": 0.0,

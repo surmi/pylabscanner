@@ -30,6 +30,7 @@ class DeviceManager:
         detector_configuration: None | BoloLineConfiguration = None,
     ):
         self.stages: dict[str, LTSStage] = {}
+        self.home_position = {}
         for label in stage_init_params:
             init_params: StageInitParams = stage_init_params[label]
             if init_params.is_mockup:
@@ -44,6 +45,7 @@ class DeviceManager:
                     init_params.rev,
                     init_params.initialize,
                 )
+            self.home_position[label] = self.stages[label].home_position
         if detector_init_params.is_mockup:
             self.detector = MockBoloLine(
                 idProduct=detector_init_params.idProduct,
