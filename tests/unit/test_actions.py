@@ -9,25 +9,11 @@ from pylabscanner.scheduler.commands import (
     StageAxis,
 )
 
-from .test_devices import _define_init_params
-
 
 @pytest.mark.detector
 @pytest.mark.stage
 @pytest.mark.device
 class TestAction:
-    _homed_position = {"x": 0, "y": 0, "z": 0}
-
-    def _setup_manager(self, mock_devices):
-        detector_init_params, stage_init_params = _define_init_params(mock_devices)
-        manager = DeviceManager(
-            stage_init_params=stage_init_params,
-            detector_init_params=detector_init_params,
-        )
-        manager.initialize()
-        manager.home("all")
-        return manager
-
     def _assert_measurement_data(
         self,
         data: list | np.ndarray,
@@ -48,34 +34,47 @@ class TestAction:
             # NOTE: this will only work for exact values
             assert np.all(data_sorted == arr_sorted)
 
-    def test_move_to(self, mock_devices: bool):
-        manager = self._setup_manager(mock_devices=mock_devices)
+    def test_move_to(
+        self,
+        default_manager: DeviceManager,
+        default_homed_position: dict[str, float],
+    ):
+        manager = default_manager
         destination = {"x": 50.0, "y": 35.0, "z": 10.0}
         action = ActionMoveTo(manager=manager, destination=destination)
         action.run()
         assert manager.current_position == destination
-        assert action.ta(prev_position=self._homed_position) > 0.0
+        assert action.ta(prev_position=default_homed_position) > 0.0
 
-    def test_home(self, mock_devices: bool):
-        manager = self._setup_manager(mock_devices=mock_devices)
+    def test_home(
+        self,
+        default_manager: DeviceManager,
+        default_homed_position: dict[str, float],
+    ):
+        manager = default_manager
         destination = {"x": 50.0, "y": 35.0, "z": 10.0}
         ActionMoveTo(manager=manager, destination=destination).run()
         assert manager.current_position == destination
         action = ActionHome(manager=manager)
         assert action.ta() > 0.0
         action.run()
-        assert manager.current_position == self._homed_position
+        assert manager.current_position == default_homed_position
 
+    @pytest.mark.skip(reason="Functionality not implemented yet")
     def test_fly_by(self, mock_devices: bool):
         pass
 
-    def test_pt_by_pt(self, mock_devices: bool):
-        manager = self._setup_manager(mock_devices=mock_devices)
+    def test_pt_by_pt(
+        self,
+        default_manager: DeviceManager,
+        default_homed_position: dict[str, float],
+    ):
+        manager = default_manager
         no_measurements = 10
         measuring_range = np.linspace(10.0, 100.0, num=no_measurements)
         starting_position = {"x": np.min(measuring_range), "y": 0, "z": 0}
         final_position = {"x": np.max(measuring_range), "y": 0, "z": 0}
-        assert manager.current_position == self._homed_position
+        assert manager.current_position == default_homed_position
         action = ActionPtByPt(
             movement_axis=StageAxis.x,
             measuring_range=measuring_range,
