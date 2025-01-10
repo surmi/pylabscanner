@@ -239,15 +239,15 @@ class LiveView:
     and handling standard input to identify when to stop the program.
     """
 
-    def __init__(self, detector: BoloLine, logger: logging.Logger = None) -> None:
+    def __init__(self, manager: DeviceManager, logger: logging.Logger = None) -> None:
         """Initialize all threads necessary for concurrent detector control,
         plotting and reading from standard input (to stop the execution).
 
         Args:
-            detector (BoloLine): detector handle
+            manager (DeviceManager): device manager handle
             logger (logging.Logger, optional): logger handle. Defaults to None.
         """
-        self.detector = detector
+        self.manager = manager
         self.measurements = Queue()
         self.shutdown_event = threading.Event()
         if logger is None:
@@ -279,7 +279,7 @@ class LiveView:
         self.detector_thread.join()
         self.interrupt_thread.join()
 
-    def _inRoutineterrupt_hook(self, args):
+    def _interrupt_hook(self, args):
         self._log.error(
             f"Thread {args.thread.getName()} failed with exception " f"{args.exc_value}"
         )
@@ -289,11 +289,9 @@ class LiveView:
 
     def _detector_controller(self, shutdown_event: threading.Event, queue: Queue):
         while True:
-            # sleep(2)
-            # y = np.random.random([10,1])
-            measurement = self.detector.measure()
+            measurement = self.manager.measure()
             det_no_samp = len(measurement)
-            det_freq = self.detector.get_freq() * 1000
+            det_freq = self.manager.detector.frequency
             queue.put(
                 {"data": measurement, "det_no_samp": det_no_samp, "det_freq": det_freq}
             )
@@ -327,7 +325,6 @@ class LiveView:
                 yx = np.arange(0, det_no_samp * dt, dt)
                 fft = np.abs(np.fft.rfft(y))
                 fftx = np.fft.rfftfreq(len(y), dt)
-                # self._log.debug(f"step: {dt}")
             except Empty:
                 pass
 
