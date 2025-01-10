@@ -1,22 +1,21 @@
-import numpy as np
-from time import sleep
 import datetime
+import logging
+from enum import Enum
 from pathlib import Path
-import pandas as pd
-from pandas.api.types import is_object_dtype
+from time import sleep
+from typing import Any, Dict, List, Tuple
+
+import h5py
 import matplotlib.pyplot as plt
-from typing import List, Tuple, Any, Dict
+import numpy as np
 import numpy.typing as npt
+import pandas as pd
 from matplotlib.figure import Figure
 from serial import SerialException
-from enum import Enum
-import logging
-import h5py
 
-from .LTS import LTS, LTSC, error_callback
-from .LTS import mm2steps
 from .devices import BoloMsgFreq, BoloMsgSamples, BoloMsgSensor
-from .commands import LineType, LineStart
+from .devices.LTS import LTS, LTSC, mm2steps
+from .scheduler.commands import LineStart, LineType
 
 
 def init_stages(stageslist: str, stage_no: Dict[str, str]) -> List[LTS]:
@@ -95,8 +94,8 @@ def init_stages(stageslist: str, stage_no: Dict[str, str]) -> List[LTS]:
             stages.append(stage_z)
 
     sleep(1)
-    for s in stages:
-        s.register_error_callback(error_callback)
+    # for s in stages:
+    #     s.register_error_callback(error_callback)
     return stages
 
 
@@ -106,8 +105,10 @@ def conv_to_steps(
     """Convert required position to microsteps (used by LTS devices).
 
     Args:
-        stages (LTS | list[LTS]): LTS object representing given stage (or whole list of them)
-        pos (int | float | list[int] | list[float]): requested positions for corresponding LTS stages
+        stages (LTS | list[LTS]): LTS object representing given stage (or whole
+            list of them)
+        pos (int | float | list[int] | list[float]): requested positions for
+            corresponding LTS stages
     """
     if type(stages) is not list:
         stages = [stages]
@@ -159,7 +160,8 @@ def parse_detector_settings(
         detfreq (int): sampling frequency
 
     Returns:
-        tuple[BoloMsgSamples, BoloMsgSamples, BoloMsgFreq]: enum objects corresponding to the detector settings
+        tuple[BoloMsgSamples, BoloMsgSamples, BoloMsgFreq]: enum objects
+            corresponding to the detector settings
     """
     # for el in BoloMsgFreq:
     #     if str(el.value[1]) == detfreq:
@@ -242,7 +244,8 @@ def postprocessing(
         det_freq (float,int, optional): sampling frequency of the detector
 
     Raises:
-        ValueError: raised if signal frequency or sampling frequency are not provided (only for 'fft' mode)
+        ValueError: raised if signal frequency or sampling frequency are not
+            provided (only for 'fft' mode)
     """
     # If data is read from file, the type of elements in the 'MEASUREMENT'
     # column will be of string type. Deal with it here.
@@ -294,10 +297,12 @@ def _predict_plot(data: pd.DataFrame, silent=False) -> Tuple[str, List[str]]:
         silent (bool, optional): wheter to raise error on fail. Defaults to False.
 
     Raises:
-        ValueError: raised on failed attempt to predict type of the plot. Only raised if 'silent' is equal to False.
+        ValueError: raised on failed attempt to predict type of the plot. Only
+            raised if 'silent' is equal to False.
 
     Returns:
-        Tuple[str, List[str]]: type of the plot ('2D' or '3D') and order of axis (horizontal and vertical correspondingly).
+        Tuple[str, List[str]]: type of the plot ('2D' or '3D') and order of
+            axis (horizontal and vertical correspondingly).
     """
     ux = data["X"].unique()
     uy = data["Y"].unique()
@@ -348,11 +353,14 @@ def plotting(
     Args:
         data (pd.DataFrame): data.
         path (Path, optional): output path. Defaults to None.
-        save (bool, optional): whether to save the plot instead of displaying it. Defaults to False.
-        show (bool, optional): whether to save the plot instead of displaying it. Defaults to False.
+        save (bool, optional): whether to save the plot instead of displaying
+            it. Defaults to False.
+        show (bool, optional): whether to save the plot instead of displaying
+            it. Defaults to False.
 
     Raises:
-        ValueError: raised when input data frame does not contain columns with processed data.
+        ValueError: raised when input data frame does not contain columns with
+            processed data.
 
     Returns:
         Tuple[Figure, Any]: figure and axes objects with created plot(s).
@@ -414,7 +422,7 @@ def plotting(
 
         # add label to the file name
         parent = path.parent
-        stem = path.stem + f"_plot"
+        stem = path.stem + "_plot"
         format = "png"
         path = parent / f"{stem}.{format}"
 
@@ -433,7 +441,7 @@ def _match_enum(key: str, value: Any) -> Any:
 
     Returns:
         Any: matched enum value or `value`.
-    """    
+    """
     if key == "detector sensor number":
         return BoloMsgSensor[value]
     elif key == "detector sampling":
@@ -447,7 +455,7 @@ def _match_enum(key: str, value: Any) -> Any:
     return value
 
 
-def load_data(path: Path) -> tuple[pd.DataFrame, dict[str, Any]|None]:
+def load_data(path: Path) -> tuple[pd.DataFrame, dict[str, Any] | None]:
     """Load data from file.
     Handled extensions: `.csv` and `.h5`.
     Metadata is only returned for `.h5` files.
@@ -459,8 +467,9 @@ def load_data(path: Path) -> tuple[pd.DataFrame, dict[str, Any]|None]:
         NotImplementedError: raised for unhandled extensions.
 
     Returns:
-        tuple[pd.DataFrame, dict[str, Any]|None]: data and metadata for `.h5`; otherwise data and `None`.
-    """    
+        tuple[pd.DataFrame, dict[str, Any]|None]: data and metadata for `.h5`;
+            otherwise data and `None`.
+    """
     if path.suffix == ".h5":
         data = {}
         metadata = {}
@@ -484,13 +493,13 @@ def load_data(path: Path) -> tuple[pd.DataFrame, dict[str, Any]|None]:
         if "MEASUREMENT" in data.columns:
             measurement_col = data["MEASUREMENT"]
             measurement = []
-            for i, measurement_str in enumerate(measurement_col):
+            for _, measurement_str in enumerate(measurement_col):
                 measurement_str = measurement_str[1:-1]
                 measurement.append(np.fromstring(measurement_str, sep=" "))
             data["MEASUREMENT"] = measurement
             return data, metadata
     else:
-        raise NotImplementedError(f'Files with {path.suffix} extension are not handled')
+        raise NotImplementedError(f"Files with {path.suffix} extension are not handled")
 
 
 def saving(
@@ -507,7 +516,8 @@ def saving(
         data (pd.DataFrame): data frame with measurements.
         path (Path): path to where the data should be saved.
         metadata (dict | None, optional): metadata to attach to the file.
-        label (str, optional): if provided, will be attached to the file name. Defaults to None.
+        label (str, optional): if provided, will be attached to the file name.
+            Defaults to None.
     """
     if metadata is not None:
         if label is not None:

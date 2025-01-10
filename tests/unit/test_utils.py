@@ -1,11 +1,13 @@
-from pandas import DataFrame, read_csv
-from pylabscanner import utils
-from pathlib import Path
-import numpy as np
-from numpy.typing import ArrayLike
-import h5py
 from enum import Enum
+from pathlib import Path
+
+import h5py
+import numpy as np
 import pytest
+from numpy.typing import ArrayLike
+from pandas import DataFrame, read_csv
+
+from pylabscanner import utils
 
 
 def test_saving_with_metadata(
