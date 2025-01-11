@@ -15,6 +15,12 @@ from serial import SerialException, SerialTimeoutException
 
 from .devices import BoloLine, DeviceNotFoundError
 from .devices.LTS import aso_home_devs, aso_move_devs, steps2mm
+from .devices.manager import (
+    BoloLineConfiguration,
+    DetectorInitParams,
+    DeviceManager,
+    StageInitParams,
+)
 
 # from .commands import LineStart, LineType, LiveView, ScanRoutine
 from .scheduler.commands import LineStart, LineType
@@ -28,6 +34,7 @@ from .utils import (
     plotting,
     postprocessing,
     saving,
+    setup_manager,
 )
 
 
@@ -40,6 +47,18 @@ class Config(object):
 
 
 pass_config = click.make_pass_decorator(Config, ensure=True)
+
+
+def option_mock_devices(function):
+    function = click.option(
+        "-md",
+        "--mock-devices",
+        is_flag=True,
+        show_default=True,
+        default=False,
+        help="Use mockups for devices",
+    )(function)
+    return function
 
 
 @click.group()
@@ -84,7 +103,6 @@ def cli(confobj: Config, debug, config: Path):
         logging.basicConfig(
             filename="log.txt",
             filemode="a",
-            # filemode='w',
             format="%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s",
             datefmt="%H:%M:%S",
             level=logging.DEBUG,
@@ -92,20 +110,7 @@ def cli(confobj: Config, debug, config: Path):
     else:
         logging.basicConfig(level=logging.ERROR)
 
-    # logging.basicConfig(filename="log.txt",
-    # logging.basicConfig(filename=logging_destination,
-    #                 # filemode='a',
-    #                 filemode='w',
-    #                 format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
-    #                 datefmt='%H:%M:%S',
-    #                 level=logging_level)
-    # level=logging.DEBUG)
     confobj.logger = logging.getLogger(__name__)
-    # if debug:
-    #     click.echo("Debug mode is on")
-    #     confobj.debug = debug
-    # else:
-    #     confobj.logger.setLevel(logging.ERROR)
 
     config_path = Path(__file__).parent.parent / "config.ini"
     if not config_path.exists() and config is None:
@@ -150,8 +155,9 @@ def cli(confobj: Config, debug, config: Path):
 
 @cli.command()
 @click.argument("stageslist", default="ALL", required=False)
+@option_mock_devices
 @pass_config
-def home(config: Config, stageslist):
+def home(config: Config, stageslist, mock_devices: bool):
     """
     Homes Thorlabs stages.
 
@@ -159,7 +165,7 @@ def home(config: Config, stageslist):
     """
     click.echo("Initializing devices...")
     try:
-        stages = init_stages(stageslist=stageslist, stage_no=config.stage_sn)
+        manager = setup_manager(stage_sn=config.stage_sn, is_mockup=mock_devices)
     except SerialException as e:
         config.logger.error(
             "Serial connection error on stage initialization before homing "
@@ -182,45 +188,42 @@ def home(config: Config, stageslist):
             "see details in the log file."
         )
         raise click.Abort
-
     click.echo("\tDevices initialized")
 
     click.echo("Homing...")
     start = time()
-    asyncio.run(aso_home_devs(stages), debug=config.debug)
-    te_home1 = time()
-    click.echo(f"\tStages homed in: {te_home1-start:.2f}s")
+    manager.home(stage_label=stageslist)
+    # asyncio.run(aso_home_devs(stages), debug=config.debug)
+    te_home = time()
+    click.echo(f"\tStages homed in: {te_home-start:.2f}s")
 
 
 @cli.command()
 @click.option("-x", type=float, default=None, required=False)
 @click.option("-y", type=float, default=None, required=False)
 @click.option("-z", type=float, default=None, required=False)
+@option_mock_devices
 @pass_config
-def moveTo(config: Config, x, y, z):
+def moveTo(config: Config, x: float, y: float, z: float, mock_devices: bool):
     """
     Moves stages to given position.
 
     Provide distance for at least one axis ('-x', '-y' or '-z').
     """
-    stagesstr = ""
-    pos = []
+    stage_destination = {}
     if x is not None:
-        stagesstr += "X"
-        pos.append(x)
+        stage_destination["x"] = x
     if y is not None:
-        stagesstr += "Y"
-        pos.append(y)
+        stage_destination["y"] = y
     if z is not None:
-        stagesstr += "Z"
-        pos.append(z)
+        stage_destination["z"] = z
 
-    if len(stagesstr) == 0:
+    if len(stage_destination) == 0:
         raise click.UsageError("Provide distance for at least one axis.")
 
     click.echo("Initializing devices...")
     try:
-        stages = init_stages(stageslist=stagesstr, stage_no=config.stage_sn)
+        manager = setup_manager(stage_sn=config.stage_sn, is_mockup=mock_devices)
     except SerialException as e:
         config.logger.error(
             "Serial connection error on stage initialization before homing "
@@ -243,13 +246,12 @@ def moveTo(config: Config, x, y, z):
             "see details in the log file."
         )
         raise click.Abort
-    pos = conv_to_steps(stages, pos)
     click.echo("\tDevices initialized")
 
     click.echo("Moving to designated position(s)...")
     start = time()
     try:
-        asyncio.run(aso_move_devs(stages, pos), debug=config.debug)
+        manager.move_stage(stage_destination=stage_destination)
     except Exception as er:
         config.logger.error("Error while running asynchronous movement to position")
         config.logger.error(er)
@@ -258,8 +260,8 @@ def moveTo(config: Config, x, y, z):
             "debug mode to see more details."
         )
         raise click.Abort
-    te_home1 = time()
-    click.echo(f"\tStages moved in: {te_home1-start:.2f}s")
+    te_move = time()
+    click.echo(f"\tStages moved in: {te_move-start:.2f}s")
 
 
 # @cli.command(context_settings={"show_default": True})

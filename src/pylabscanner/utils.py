@@ -15,7 +15,29 @@ from serial import SerialException
 
 from .devices import BoloMsgFreq, BoloMsgSamples, BoloMsgSensor
 from .devices.LTS import LTS, LTSC, mm2steps
+from .devices.manager import DeviceManager, StageInitParams
 from .scheduler.commands import LineStart, LineType
+
+
+def setup_manager(
+    stage_sn: dict[str, str], initialize: bool = True, is_mockup: bool = False
+) -> DeviceManager:
+    stage_parameters = {}
+    for axis in stage_sn:
+        stage_parameters[axis] = StageInitParams(
+            serial_number=stage_sn[axis],
+            rev="LTSC" if axis == "z" else "LTS",
+            initialize=initialize,
+            is_mockup=is_mockup,
+        )
+    detector_parameters = None
+
+    manager = DeviceManager(
+        stage_init_params=stage_parameters,
+        detector_init_params=detector_parameters,
+    )
+
+    return manager
 
 
 def init_stages(stageslist: str, stage_no: Dict[str, str]) -> List[LTS]:

@@ -32,38 +32,46 @@ class DeviceManager:
         self.stages: dict[str, LTSStage] = {}
         self.home_position = {}
         for label in stage_init_params:
-            init_params: StageInitParams = stage_init_params[label]
-            if init_params.is_mockup:
-                self.stages[label] = MockLTSStage(
-                    init_params.serial_number,
-                    init_params.rev,
-                    init_params.initialize,
+            init_params: StageInitParams | None = stage_init_params[label]
+            if init_params is not None:
+                if init_params.is_mockup:
+                    self.stages[label] = MockLTSStage(
+                        init_params.serial_number,
+                        init_params.rev,
+                        init_params.initialize,
+                    )
+                else:
+                    self.stages[label] = LTSStage(
+                        init_params.serial_number,
+                        init_params.rev,
+                        init_params.initialize,
+                    )
+                self.home_position[label] = self.stages[label].home_position
+            else:
+                stage_configurations[label] = None
+
+        if detector_init_params is not None:
+            if detector_init_params.is_mockup:
+                self.detector = MockBoloLine(
+                    idProduct=detector_init_params.idProduct,
+                    idVendor=detector_init_params.idVendor,
+                    sensor=detector_init_params.sensor,
+                    samples=detector_init_params.samples,
+                    freq=detector_init_params.freq,
+                    initialize=detector_init_params.initialize,
                 )
             else:
-                self.stages[label] = LTSStage(
-                    init_params.serial_number,
-                    init_params.rev,
-                    init_params.initialize,
+                self.detector = BoloLine(
+                    idProduct=detector_init_params.idProduct,
+                    idVendor=detector_init_params.idVendor,
+                    sensor=detector_init_params.sensor,
+                    samples=detector_init_params.samples,
+                    freq=detector_init_params.freq,
+                    initialize=detector_init_params.initialize,
                 )
-            self.home_position[label] = self.stages[label].home_position
-        if detector_init_params.is_mockup:
-            self.detector = MockBoloLine(
-                idProduct=detector_init_params.idProduct,
-                idVendor=detector_init_params.idVendor,
-                sensor=detector_init_params.sensor,
-                samples=detector_init_params.samples,
-                freq=detector_init_params.freq,
-                initialize=detector_init_params.initialize,
-            )
         else:
-            self.detector = BoloLine(
-                idProduct=detector_init_params.idProduct,
-                idVendor=detector_init_params.idVendor,
-                sensor=detector_init_params.sensor,
-                samples=detector_init_params.samples,
-                freq=detector_init_params.freq,
-                initialize=detector_init_params.initialize,
-            )
+            detector_configuration = None
+
         self.configure(
             detector_configuration=detector_configuration,
             stage_configurations=stage_configurations,
@@ -83,7 +91,10 @@ class DeviceManager:
             self.detector.configure(configuration=detector_configuration)
         if stage_configurations is not None and stage_configurations:
             for label in stage_configurations:
-                self.stages[label].configure(configuration=stage_configurations[label])
+                if stage_configurations[label] is not None:
+                    self.stages[label].configure(
+                        configuration=stage_configurations[label]
+                    )
 
     @property
     def current_configuration(self):
@@ -101,17 +112,17 @@ class DeviceManager:
 
     async def home_async(self, stage_label: str | list[str]):
         if isinstance(stage_label, str):
-            if stage_label == "all":
+            if stage_label.lower() == "all":
                 stage_label = ["x", "y", "z"]
             else:
-                stage_label = [stage_label]
+                stage_label = [stage_label.lower()]
         async with TaskGroup() as tg:
             tasks = []
             for label in stage_label:
-                stage = self.stages[label]
+                stage = self.stages[label.lower()]
                 tasks.append(
                     tg.create_task(
-                        stage.home(), name=f"Homing stage with label {label}"
+                        stage.home(), name=f"Homing stage with label {label.lower()}"
                     ),
                 )
 
