@@ -12,9 +12,8 @@ import pandas as pd
 from click.core import ParameterSource
 from serial import SerialException, SerialTimeoutException
 
-from .devices import BoloLine, DeviceNotFoundError
+from .devices import DeviceNotFoundError
 from .devices.manager import LiveView
-from .scheduler.commands import LineStart, LineType
 from .scheduler.scheduler import ScanScheduler
 from .utils import (
     _parse_detector_frequency,

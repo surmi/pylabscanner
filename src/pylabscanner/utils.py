@@ -1,9 +1,7 @@
 import datetime
-import logging
 from enum import Enum
 from pathlib import Path
-from time import sleep
-from typing import Any, Dict, List, Tuple
+from typing import Any, List, Tuple
 
 import h5py
 import matplotlib.pyplot as plt
