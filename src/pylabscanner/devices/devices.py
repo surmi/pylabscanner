@@ -414,6 +414,9 @@ class BoloLine(Detector):
         # this method make read of it
         # self._cold_start()
 
+    def __str__(self):
+        return "Luvitera Mini THz Sensor, 4 pixel array"
+
     def description(self):
         """Detialed description of detector properties."""
         if any(
@@ -701,6 +704,9 @@ class LTSStage(MotorizedStage):
         self._is_initialized = False
         if initialize:
             self.initialize()
+
+    def __str__(self):
+        return f"{self.rev} stage, S/N: {self.serial_number}"
 
     @property
     @Device.check_initialized

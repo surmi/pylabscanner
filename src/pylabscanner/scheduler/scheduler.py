@@ -1,4 +1,5 @@
 from time import time
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -79,6 +80,19 @@ class ScanScheduler:
         self._ranges = value
         if self.is_built:
             self._init_internal_params()
+
+    def fill_metadata(self, metadata_output: None | dict[str, Any] = None):
+        if metadata_output is None:
+            metadata_output = {}
+
+        for axis in self.ranges:
+            metadata_output[f"{axis} axis range [beg:end:no pts|pos]"] = self.ranges[
+                axis
+            ]
+        metadata_output["scanning mode"] = self.line_type
+        metadata_output["scanning line start"] = self.line_start
+
+        return metadata_output
 
     def make_schedule(self):
         """Build the scan routine."""

@@ -11,16 +11,20 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 from matplotlib.figure import Figure
-from serial import SerialException
 
 from .devices import BoloMsgFreq, BoloMsgSamples, BoloMsgSensor
-from .devices.LTS import LTS, LTSC, mm2steps
-from .devices.manager import DeviceManager, StageInitParams
+from .devices.LTS import LTS, mm2steps
+from .devices.manager import DetectorInitParams, DeviceManager, StageInitParams
 from .scheduler.commands import LineStart, LineType
 
 
 def setup_manager(
-    stage_sn: dict[str, str], initialize: bool = True, is_mockup: bool = False
+    stage_sn: dict[str, str],
+    initialize: bool = True,
+    is_mockup: bool = False,
+    sensor: BoloMsgSensor | None = None,
+    samples: BoloMsgSamples | None = None,
+    freq: BoloMsgFreq | None = None,
 ) -> DeviceManager:
     stage_parameters = {}
     for axis in stage_sn:
@@ -30,7 +34,17 @@ def setup_manager(
             initialize=initialize,
             is_mockup=is_mockup,
         )
-    detector_parameters = None
+
+    if sensor is not None and samples is not None and freq is not None:
+        detector_parameters = DetectorInitParams(
+            sensor=sensor,
+            samples=samples,
+            freq=freq,
+            initialize=initialize,
+            is_mockup=is_mockup,
+        )
+    else:
+        detector_parameters = None
 
     manager = DeviceManager(
         stage_init_params=stage_parameters,
@@ -38,87 +52,6 @@ def setup_manager(
     )
 
     return manager
-
-
-def init_stages(stageslist: str, stage_no: Dict[str, str]) -> List[LTS]:
-    """Initialize LTS and LTSC stages.
-
-    Args:
-        stageslist (str): which axis to initialize
-        stage_no (Dict[str, str]): dictionary with serial numbers of stages
-
-    Returns:
-        List[LTS]: list of initialized objects
-    """
-    stages = []
-    logger = logging.getLogger(__name__)
-    if stageslist == "ALL":
-
-        try:
-            stage_z = LTS(serial_number=stage_no["z"], home=False)
-        except SerialException as e:
-            logger.error("Exception on serial connection to z axis stage.")
-            raise e
-        except RuntimeError as e:
-            logger.error("Exception on initialization of z axis stage.")
-            raise e
-
-        try:
-            stage_y = LTS(serial_number=stage_no["y"], home=False)
-        except SerialException as e:
-            logger.error("Exception on serial connection to y axis stage.")
-            raise e
-        except RuntimeError as e:
-            logger.error("Exception on initialization of y axis stage.")
-            raise e
-
-        try:
-            stage_x = LTSC(serial_number=stage_no["x"], home=False)
-        except SerialException as e:
-            logger.error("Exception on serial connection to x axis stage.")
-            raise e
-        except RuntimeError as e:
-            logger.error("Exception on initialization of x axis stage.")
-            raise e
-        stages.append(stage_x)
-        stages.append(stage_y)
-        stages.append(stage_z)
-    else:
-        if "X" in stageslist or "x" in stageslist:
-            try:
-                stage_x = LTSC(serial_number=stage_no["x"], home=False)
-            except SerialException as e:
-                logger.error("Exception on serial connection to x axis stage.")
-                raise e
-            except RuntimeError as e:
-                logger.error("Exception on initialization of x axis stage.")
-                raise e
-            stages.append(stage_x)
-        if "Y" in stageslist or "y" in stageslist:
-            try:
-                stage_y = LTS(serial_number=stage_no["y"], home=False)
-            except SerialException as e:
-                logger.error("Exception on serial connection to y axis stage.")
-                raise e
-            except RuntimeError as e:
-                logger.error("Exception on initialization of y axis stage.")
-                raise e
-            stages.append(stage_y)
-        if "Z" in stageslist or "z" in stageslist:
-            try:
-                stage_z = LTS(serial_number=stage_no["z"], home=False)
-            except SerialException as e:
-                logger.error("Exception on initialization of z axis stage.")
-                raise e
-            except RuntimeError as e:
-                logger.error("Exception on initialization of z axis stage.")
-                raise e
-            stages.append(stage_z)
-
-    sleep(1)
-    # for s in stages:
-    #     s.register_error_callback(error_callback)
-    return stages
 
 
 def conv_to_steps(
@@ -146,7 +79,19 @@ def conv_to_steps(
         return retPos
 
 
-def parse_range(range: str) -> npt.NDArray:
+def parse_scan_parameters(mode: str, linestart: str):
+    if mode == "ptbypt":
+        mode = LineType.PTBYPT
+    elif mode == "flyby":
+        mode = LineType.FLYBY
+    if linestart == "snake":
+        linestart = LineStart.SNAKE
+    elif linestart == "cr":
+        linestart = LineStart.CR
+    return (mode, linestart)
+
+
+def parse_range(range: str) -> npt.NDArray | None:
     """Parse range option. Accepts single float or 3 floats separated with ':'.
 
     Args:
@@ -550,15 +495,15 @@ def saving(
             path = parent / f"{stem}{suffix}"
         path.parent.mkdir(exist_ok=True)
         ds_dtype = [
-            ("X", np.float64),
-            ("Y", np.float64),
-            ("Z", np.float64),
+            ("x", np.float64),
+            ("y", np.float64),
+            ("z", np.float64),
             ("MEASUREMENT", np.float64, data["MEASUREMENT"][0].shape),
         ]
-        ds_arr = np.recarray(data["X"].shape, dtype=ds_dtype)
-        ds_arr["X"] = data["X"]
-        ds_arr["Y"] = data["Y"]
-        ds_arr["Z"] = data["Z"]
+        ds_arr = np.recarray(data["x"].shape, dtype=ds_dtype)
+        ds_arr["x"] = data["x"]
+        ds_arr["y"] = data["y"]
+        ds_arr["z"] = data["z"]
         ds_arr["MEASUREMENT"] = np.zeros(
             (data["MEASUREMENT"].size, data["MEASUREMENT"][0].size)
         )

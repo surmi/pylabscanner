@@ -96,6 +96,22 @@ class DeviceManager:
                         configuration=stage_configurations[label]
                     )
 
+    def fill_metadata(self, metadata_output: None | dict[str, str] = None):
+        if metadata_output is None:
+            metadata_output = {}
+
+        if self.detector is not None:
+            metadata_output["detector name"] = str(self.detector)
+            metadata_output["detector sensor number"] = self.detector.sensor
+            metadata_output["detector sampling"] = self.detector.samples
+            metadata_output["detector sampling frequency [kHz]"] = (
+                self.detector.frequency
+            )
+        for axis in self.stages:
+            metadata_output[f"{axis} axis device"] = str(self.stages[axis])
+
+        return metadata_output
+
     @property
     def current_configuration(self):
         res = {"detector": self.detector.current_configuration}
