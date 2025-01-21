@@ -1,11 +1,11 @@
 import numpy as np
 import pytest
-from fixtures.setup import mock_measurement_data, mock_metadata  # noqa
 
 from pylabscanner.devices.devices import DetectorInitParams
 from pylabscanner.devices.manager import DeviceManager, StageInitParams
 from pylabscanner.scheduler.commands import LineStart, LineType
 from pylabscanner.scheduler.scheduler import ScanScheduler
+from fixtures.setup import *
 
 
 def pytest_addoption(parser):
