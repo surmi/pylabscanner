@@ -21,7 +21,7 @@ def mock_measurement_data() -> pd.DataFrame:
     measurement_range_z = parse_range("10.0")
     is_reverse = False
     no_samp = 1000
-    data = pd.DataFrame({"X": [], "Y": [], "Z": [], "MEASUREMENT": []})
+    data = pd.DataFrame({"x": [], "y": [], "z": [], "MEASUREMENT": []})
     for z in measurement_range_z:
         for y in measurement_range_y:
             if is_reverse:
@@ -29,9 +29,9 @@ def mock_measurement_data() -> pd.DataFrame:
             else:
                 x_data = measurement_range_x
             data_line = {
-                "X": x_data,
-                "Y": np.full(measurement_range_x.shape, y),
-                "Z": np.full(measurement_range_x.shape, z),
+                "x": x_data,
+                "y": np.full(measurement_range_x.shape, y),
+                "z": np.full(measurement_range_x.shape, z),
                 "MEASUREMENT": _generate_fake_line_data(
                     measurement_range_x.size, no_samp
                 ),
