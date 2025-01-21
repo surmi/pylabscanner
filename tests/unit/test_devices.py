@@ -162,7 +162,9 @@ class TestStage:
         asyncio.run(stage.home())
         assert stage.current_position == 0.0
 
-    def test_stage_device_not_found_error(self):
+    def test_stage_device_not_found_error(self, mock_devices: bool):
+        if mock_devices:
+            pytest.skip()
         stage = self._initialize_stage(
             mock_stage=False,
             serial_number=self._get_serial_number(False),
