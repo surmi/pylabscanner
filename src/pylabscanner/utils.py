@@ -2,6 +2,7 @@ import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any, List, Tuple
+import csv
 
 import h5py
 import matplotlib.pyplot as plt
@@ -14,6 +15,8 @@ from .devices import BoloMsgFreq, BoloMsgSamples, BoloMsgSensor
 from .devices.LTS import LTS, mm2steps
 from .devices.manager import DetectorInitParams, DeviceManager, StageInitParams
 from .scheduler.commands import LineStart, LineType
+
+FILE_EXTENSIONS = ("h5", "he5", "hdf5", "hdf", "csv", "txt")
 
 
 def setup_manager(
@@ -152,9 +155,7 @@ def _parse_detector_frequency(detfreq: str) -> BoloMsgFreq:
             return el
 
 
-def parse_filepath(
-    filepath: Path, timestamp: bool = True, extension: None | str = None
-) -> Tuple[Path, str]:
+def parse_filepath(filepath: Path, timestamp: bool = False) -> Tuple[Path, str]:
     """Parse file path, timestamp, and extension options.
 
     Args:
@@ -165,16 +166,34 @@ def parse_filepath(
     Returns:
         Tuple[Path, str]: tuple containing output path and extension of the output file.
     """
+    if filepath.is_dir():
+        raise ValueError("'filepath' should contain path to a file")
+        # TODO: add handling in CLI
+
     parent = filepath.parent
     stem = filepath.stem
     suffix = filepath.suffix
 
-    if suffix.split(".")[-1] not in ["h5", "hdf5"]:
-        suffix = suffix + ".h5"
+    if (
+        suffix.split(".")[-1] not in FILE_EXTENSIONS
+        or suffix.split(".")[-1].lower() == "txt"
+    ):
+        extension = "csv"
+        suffix = suffix + f".{extension}"
+    else:
+        extension = suffix.split(".")[-1]
 
-    if timestamp:
+    if timestamp or filepath.exists():
         stem += "_{:%Y%m%d_%H%M%S}".format(datetime.datetime.now())
-    return (parent / f"{stem}{suffix}", suffix[1:])
+    return (parent / f"{stem}{suffix}", extension)
+
+
+def filepath_add_label(path: Path, label: str) -> Path:
+    parent = path.parent
+    stem = path.stem
+    suffix = path.suffix
+
+    return parent / f"{stem}_{label}{suffix}"
 
 
 def _closest_val(data: npt.ArrayLike, x: float) -> Tuple[int, float]:
@@ -468,7 +487,11 @@ def load_data(path: Path) -> tuple[pd.DataFrame, dict[str, Any] | None]:
 
 
 def saving(
-    data: pd.DataFrame, path: Path, metadata: dict | None = None, label: str = None
+    data: pd.DataFrame,
+    path: Path,
+    extension: str,
+    metadata: dict | None = None,
+    label: str = None,
 ) -> None:
     """Save data to a file.
     If `metadata` provided then saves to HDF5 file (with extension .h5).
@@ -484,14 +507,14 @@ def saving(
         label (str, optional): if provided, will be attached to the file name.
             Defaults to None.
     """
-    if metadata is not None:
-        if label is not None:
-            # modify filename
-            parent = path.parent
-            stem = path.stem + f"_{label}"
-            suffix = path.suffix
-            path = parent / f"{stem}{suffix}"
-        path.parent.mkdir(exist_ok=True)
+    if label is not None:
+        # modify filename
+        parent = path.parent
+        stem = path.stem + f"_{label}"
+        suffix = path.suffix
+        path = parent / f"{stem}{suffix}"
+    path.parent.mkdir(exist_ok=True)
+    if extension in ("h5", "he5", "hdf5", "hdf"):
         ds_dtype = [
             ("x", np.float64),
             ("y", np.float64),
@@ -510,11 +533,19 @@ def saving(
 
         with h5py.File(path, "w") as f:
             f.create_dataset("data", data=ds_arr, maxshape=(None))
-            for key, value in metadata.items():
-                if isinstance(value, Enum):
-                    f.attrs.create(key, value.name)
-                else:
-                    f.attrs[key] = value
-    else:
+            if metadata is not None:
+                for key, value in metadata.items():
+                    if isinstance(value, Enum):
+                        f.attrs.create(key, value.name)
+                    else:
+                        f.attrs[key] = value if value is not None else "None"
+    elif extension == "csv":
         with path.open("w+") as f:
             data.to_csv(f)
+        if metadata is not None:
+            metadata_path = filepath_add_label(path, "_meta")
+            with metadata_path.open("w+") as f:
+                field_names = list(metadata.keys())
+                writer = csv.DictWriter(f, fieldnames=field_names)
+                writer.writeheader()
+                writer.writerow(metadata)

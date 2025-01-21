@@ -266,7 +266,7 @@ def moveTo(config: Config, x: float, y: float, z: float, mock_devices: bool):
         path_type=Path,
         resolve_path=True,
     ),
-    default="./out/out",
+    default="./out/out.csv",
     help="File name or path to the file in which results will be written.",
 )
 @click.option(
@@ -317,7 +317,6 @@ def moveTo(config: Config, x: float, y: float, z: float, mock_devices: bool):
     help="Wheather to append timestamp to the filename",
     default=False,
 )
-@click.option("-ext", "extension", type=str, help="Enforce specific extension")
 @click.option(
     "-plt", "plot", is_flag=True, default=False, help="Whether to plot the output data"
 )
@@ -353,7 +352,6 @@ def scan(
     det_samp,
     det_freq,
     timestamp,
-    extension,
     plot,
     plot_save,
     postproc,
@@ -392,10 +390,13 @@ def scan(
     assumed to be in mm.
 
     File name or whole valid path (may be relative) with file name can be
-    provided via '-o' option. Note that file is open in w+ mode (it will be
+    provided via '-o' option.
+    --------------------------------
+    Note that file is open in w+ mode (it will be
     overwritten if exists). If '-ext' option is provided the '-ext' value
     will be appended to the value of '-o' option as extension. Without '-ext'
     option and with no extension in '-o' value default extension is '.txt'.
+    ----------------------------------
     Providing '-ts' flag appends timestamp to the file name.
 
     The result of measurement is a series of samples per single scanning point
@@ -425,9 +426,7 @@ def scan(
         z=100, and x=[10,55,100].
     """
 
-    # TODO: add other methods for saving data
-    # TODO: implement different file format per extension
-    # TODO: add data from postprocessing to separate file
+    # TODO: add logging to a file for errors (always) and for info (when selected)
     # TODO: identify modulation (chopper) frequency limit
     # TODO: move scan parsing to separate function (return settings dictionary?)
     # TODO: differentiate plot and plot_save behaviour
@@ -458,9 +457,10 @@ def scan(
     det_sens, det_samp, det_freq = parse_detector_settings(
         detsens=det_sens, detsamp=det_samp, detfreq=det_freq
     )
-    outpath, extension = parse_filepath(
-        filepath=outpath, timestamp=timestamp, extension=extension
-    )
+    try:
+        outpath, extension = parse_filepath(filepath=outpath, timestamp=timestamp)
+    except ValueError as e:
+        raise click.UsageError("Path needs to point to a file")
     if postproc == "raw" and plot:
         raise click.UsageError("Can't plot raw data")
     elif postproc == "fft" and chop_freq is None:
@@ -520,7 +520,7 @@ def scan(
     )
     scheduler.make_schedule()
     scheduler.fill_metadata(metadata_output=metadata)
-    metadata["signal modulation frequency [Hz]"] = (chop_freq,)
+    metadata["signal modulation frequency [Hz]"] = chop_freq
 
     # print the setup parameters and ask for confirmation
     click.echo("---")
@@ -567,7 +567,7 @@ def scan(
         click.echo("\tMeasurement finished")
 
         # save raw data to file
-        saving(data=data, metadata=metadata, path=outpath)
+        saving(data=data, metadata=metadata, path=outpath, extension=extension)
 
         if postproc != "raw":
             # do the postprocessing
@@ -658,6 +658,7 @@ def plot(
         metadata = {}
 
         data = pd.read_csv(files[0], index_col=0)
+        # TODO: correct extension checking
         outpath, extension = parse_filepath(
             filepath=files[0], timestamp=None, extension=".png"
         )
