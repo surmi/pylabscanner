@@ -12,7 +12,6 @@ h5py = "*"
 matplotlib = "*"
 numpy = "*"
 pandas = "*"
-pylabscanner = {file = ".", editable = true}
 pyserial = "*"
 pytest = "*"
 tables = "*"
