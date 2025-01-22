@@ -825,7 +825,7 @@ class LTSStage(MotorizedStage):
         """Go to desired position asynchronously."""
         if not self.is_request_position_valid(destination):
             raise ValueError("Invalid destination value.")
-        self.stage.aso_move_absolute(
+        await self.stage.aso_move_absolute(
             position=mm2steps(destination, self.stage.convunits["pos"])
         )
 
