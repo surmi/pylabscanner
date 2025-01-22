@@ -299,7 +299,7 @@ def _predict_plot(data: pd.DataFrame, silent=False) -> Tuple[str, List[str]]:
             axorder = ["x", "y"]
         return "3D", axorder
     elif np.count_nonzero(np.equal(testar, 1)) == 2:
-        # two axis doesn't change
+        # two axis don't change
         # we need a 2D plot (1 axis + val)
         # e.g. scatter(), plot()
         if nx != 1:
@@ -369,6 +369,7 @@ def plotting(
     )
 
     # define type of plots
+    label_axis = None
     if plt_config is None:
         pltype, axorder = _predict_plot(data)
     else:
@@ -382,6 +383,7 @@ def plotting(
             y = data[label]
             ax.plot(x, y, "o", ms=4)
             ax.set_title(label)
+            label_axis = "_" + axorder[0]
         elif pltype == "3D":
             ux = data[axorder[0]].unique()
             x = data[axorder[0]]
@@ -397,12 +399,15 @@ def plotting(
             )
             fig.colorbar(img, ax=ax, orientation="horizontal")
             ax.set_title(label)
+            label_axis = "_" + axorder[0] + axorder[1]
     if save:
         path.parent.mkdir(exist_ok=True)
 
         # add label to the file name
         parent = path.parent
         stem = path.stem + "_plot"
+        if label_axis is not None:
+            stem += label_axis
         format = "png"
         path = parent / f"{stem}.{format}"
 

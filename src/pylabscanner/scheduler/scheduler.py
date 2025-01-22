@@ -215,102 +215,6 @@ class ScanScheduler:
 
         elif self.line_type == LineType.PTBYPT:
             self._build_line_scans()
-            # # go to start position
-            # self.actions.append(ActionMoveTo(self.stages, start_pos))
-            # maxind = max(range(len(start_pos)), key=start_pos.__getitem__)
-            # self.ta += calc_movetime(stage=self.stages[maxind], dist=max(start_pos))
-
-            # # do a single line
-            # reverse = False
-            # self.actions.append(
-            #     ActionPtByPt(
-            #         self.stages[self.order[0].value],
-            #         self.detector,
-            #         self.ranges[self.order[0].value],
-            #         self.order,
-            #         start_pos[1:],
-            #         reverse=reverse,
-            #     )
-            # )
-            # pts_per_line = len(self.ranges[self.order[0].value]) - 1
-            # dist_btw_meas = (
-            #     self.ranges[self.order[0].value].max()
-            #     - self.ranges[self.order[0].value].min()
-            # )
-            # self.ta += pts_per_line * calc_movetime(
-            #     stage=self.stages[self.order[0].value], dist=dist_btw_meas
-            # )
-            # self.ta += self.detector.get_ta() * len(self.ranges[self.order[0].value])
-
-            # # if order[1] or order[2] is bigger than 1,
-            # # move correct iterator by one and do a for loop.
-            # # Otherwise this is a single line scan and loop is not necessary.
-            # if (
-            #     len(self.ranges[self.order[1].value]) > 1
-            #     or len(self.ranges[self.order[2].value]) > 1
-            # ):
-            #     # reduce range by one (one line already done)
-            #     range_2 = self.ranges[self.order[2].value]
-            #     range_1 = self.ranges[self.order[1].value]
-            #     if len(range_1) > 1:
-            #         range_1 = range_1[1:]
-            #     else:
-            #         range_2 = range_2[1:]
-            #     # for loop: move to the beginning of the next line, do the line
-            #     for i in range_2:
-            #         for j in range_1:
-            #             # go to a new line
-            #             new_line_pos = [0.0] * 3
-            #             if self.line_start == LineStart.SNAKE:
-            #                 if reverse:
-            #                     # stage is at min of order[0] range
-            #                     new_line_pos[self.order[0].value] = self.ranges[
-            #                         self.order[0].value
-            #                     ].min()
-            #                     pass
-            #                 else:
-            #                     # stage is at max of order[0] range
-            #                     new_line_pos[self.order[0].value] = self.ranges[
-            #                         self.order[0].value
-            #                     ].max()
-
-            #                 new_line_pos[self.order[1].value] = j
-            #                 new_line_pos[self.order[2].value] = i
-
-            #                 reverse = not reverse
-            #             elif self.line_start == LineStart.CR:
-            #                 new_line_pos[self.order[0].value] = self.ranges[
-            #                     self.order[0].value
-            #                 ].min()
-            #                 new_line_pos[self.order[1].value] = j
-            #                 new_line_pos[self.order[2].value] = i
-
-            #             self.actions.append(ActionMoveTo(self.stages, new_line_pos))
-
-            #             # do the line
-            #             self.actions.append(
-            #                 ActionPtByPt(
-            #                     self.stages[self.order[0].value],
-            #                     self.detector,
-            #                     self.ranges[self.order[0].value],
-            #                     self.order,
-            #                     [j, i],
-            #                     reverse=reverse,
-            #                 )
-            #             )
-            #             pts_per_line = len(self.ranges[self.order[0].value]) - 1
-            #             dist_btw_meas = (
-            #                 self.ranges[self.order[0].value].max()
-            #                 - self.ranges[self.order[0].value].min()
-            #             )
-            #             self.ta += pts_per_line * calc_movetime(
-            #                 stage=self.stages[self.order[0].value], dist=dist_btw_meas
-            #             )
-            #             self.ta += self.detector.get_ta() * len(
-            #                 self.ranges[self.order[0].value]
-            #             )
-            # else:
-            #     raise NotImplemented("Single line scan not implemented yet")
         else:
             raise ValueError(
                 f"Expected line_type of value {LineType.FLYBY} or "
@@ -393,18 +297,73 @@ class ScanScheduler:
         reverse = False
         previous_position = self._manager.home_position
         axis_order = self._axis_order()
-        if self._scan_dimensionality() == 2:
-            step_axis = axis_order[1]
-            step_range = self._ranges[step_axis]
+        if self._scan_dimensionality() == 1:
+            # identify scanning and static axes
             scan_axis = axis_order[0]
             scan_range = self._ranges[scan_axis]
+            static_axis_1 = axis_order[1]
+            static_axis_2 = axis_order[2]
+            if static_axis_1 not in self._ranges:
+                static_axis_1_position = self._manager.current_position[static_axis_1]
+            else:
+                static_axis_1_position = self._ranges[static_axis_1][0]
+            if static_axis_2 not in self._ranges:
+                static_axis_2_position = self._manager.current_position[static_axis_2]
+            else:
+                static_axis_2_position = self._ranges[static_axis_2][0]
+
+            other_axis_position = {
+                static_axis_1: static_axis_1_position,
+                static_axis_2: static_axis_2_position,
+            }
+            start_line_pos = self._calculate_starting_position(
+                other_axis_positions=other_axis_position,
+                scan_axis=scan_axis,
+                reverse=reverse,
+            )
+
+            # go to the starting position of next line
+            starting_position_action = ActionMoveTo(
+                manager=self._manager, destination=start_line_pos
+            )
+            self.actions.append(starting_position_action)
+            self.ta += starting_position_action.ta(prev_position=previous_position)
+
+            # do the line
+            if self.line_start == LineStart.SNAKE and reverse:
+                action_range = np.flip(scan_range)
+            else:
+                action_range = scan_range
+            line_action = ActionPtByPt(
+                movement_axis=StageAxis[scan_axis],
+                measuring_range=action_range,
+                manager=self._manager,
+                starting_position=start_line_pos,
+            )
+            self.actions.append(line_action)
+            self.ta += line_action.get_ta()
+
+            # set previous position
+            previous_position = line_action.last_position
+
+            self.last_position = previous_position
+
+        elif self._scan_dimensionality() == 2:
+            scan_axis = axis_order[0]
+            scan_range = self._ranges[scan_axis]
+            step_axis = axis_order[1]
+            step_range = self._ranges[step_axis]
             static_axis = axis_order[2]
+            if static_axis not in self._ranges:
+                static_axis_position = self._manager.current_position[static_axis]
+            else:
+                static_axis_position = self._ranges[static_axis][0]
 
             # move to the beginning of the next line and then do the line
             for i in step_range:
                 # calculate new starting position
                 other_axis_position = {
-                    static_axis: self._ranges[static_axis][0],
+                    static_axis: static_axis_position,
                     step_axis: i,
                 }
                 start_line_pos = self._calculate_starting_position(
@@ -421,7 +380,7 @@ class ScanScheduler:
                 self.ta += starting_position_action.ta(prev_position=previous_position)
 
                 # do the line
-                if reverse:
+                if self.line_start == LineStart.SNAKE and reverse:
                     action_range = np.flip(scan_range)
                 else:
                     action_range = scan_range
@@ -442,4 +401,4 @@ class ScanScheduler:
             self.last_position = previous_position
 
         else:
-            raise NotImplementedError("Single line and 3D scans not implemented yet")
+            raise NotImplementedError("3D scans not implemented yet")

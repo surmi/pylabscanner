@@ -434,11 +434,6 @@ def scan(
             ranges["z"] = measrngz
     except ValueError as e:
         raise click.UsageError(e)
-    if measrngx is None or measrngy is None or measrngz is None:
-        # TODO: remove when ready
-        raise click.UsageError(
-            "Single line scans with only one range provided not available yet."
-        )
     if measrngx is None and measrngy is None and measrngz is None:
         # return early if not enough information is provided
         raise click.UsageError("Provide scanning range for at least one axis")
@@ -524,10 +519,10 @@ def scan(
         f"\tz: {z if z is not None else 0} "
         f"[{len(measrngz) if measrngz is not None else 0} point(s) per line]"
     )
-    click.echo(
-        "Total number of points in the scan: "
-        f"{len(measrngx)*len(measrngy)*len(measrngz)}"
-    )
+    no_pts = len(measrngx) if measrngx is not None else 1
+    no_pts *= len(measrngy) if measrngy is not None else 1
+    no_pts *= len(measrngz) if measrngz is not None else 1
+    click.echo("Total number of points in the scan: " f"{no_pts}")
     click.echo(
         f"Estimated time of measurement: {floor(scheduler.ta/60)}m {scheduler.ta % 60:.0f}s"
     )
