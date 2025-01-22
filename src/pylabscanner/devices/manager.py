@@ -347,7 +347,7 @@ class LiveView:
                 payload = self.measurements.get_nowait()
                 y = payload["data"]
                 det_no_samp = payload["det_no_samp"]
-                det_freq = payload["det_freq"]
+                det_freq = payload["det_freq"] * 1000
                 dt = 1 / det_freq
                 yx = np.arange(0, det_no_samp * dt, dt)
                 fft = np.abs(np.fft.rfft(y))
