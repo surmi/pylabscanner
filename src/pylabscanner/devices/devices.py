@@ -318,16 +318,25 @@ class BoloLine(Detector):
 
     def _read(self) -> bytes:
         """Reads all bytes available in the buffor."""
+        res = bytearray()
+        bytes_len = 0
         while True:
             if (
-                self._dev.in_waiting != 0
-                and self._dev.in_waiting >= self._samples.nsamp * 2
+                self._dev.in_waiting
+                != 0
+                # and self._dev.in_waiting >= self._samples.nsamp * 2
             ):
-                # print(self._dev.in_waiting)
-                break
+                bytes_read = self._dev.read(self._dev.in_waiting)
+                for br in bytes_read.split(self._idstr):
+                    if len(br) != 0:
+                        res.extend(br)
+                        bytes_len += len(br)
+
+                if bytes_len >= self._samples.nsamp * 2:
+                    break
             sleep(self._read_delay)
 
-        return self._dev.read(self._dev.in_waiting)
+        return bytes(res)
 
     def _makemsg(self) -> None:
         """Updates massage send on every write to the detector."""
@@ -457,22 +466,36 @@ class BoloLine(Detector):
         Returns:
             List[float]: Measured data converted from list of bytes to floats.
         """
-        self._dev.reset_input_buffer()
-        self._dev.reset_output_buffer()
 
-        try:
-            self._write()
-            sleep(self._write_delay)
-            self._read()
+        data = []
+        reinit_no = 0
+        while len(data) != self._samples.nsamp:
+            # repeat measurement until received exact amount of samples
+            self._dev.reset_input_buffer()
+            self._dev.reset_output_buffer()
+            try:
+                self._write()
+                sleep(self._write_delay)
+                self._read()
 
-            self._write()
-            sleep(self._write_delay)
-        except serial.SerialTimeoutException as serial_timeout_exception:
-            raise serial_timeout_exception
+                self._write()
+                sleep(self._write_delay)
+            except serial.SerialTimeoutException as serial_timeout_exception:
+                raise serial_timeout_exception
 
-        # data = self.pairwise(self._read())
-        data = self.pairwise(self._trimans(self._read()))
-        # all_frames.append(self._trimans(self._read()))
+            data = self.pairwise(self._read())
+            # data = self.pairwise(self._trimans(self._read()))
+            if len(data) != self._samples.nsamp:
+                print(f"samples: {len(data)}. Reinitializing...")
+                # TODO: log reinitialization number (as a warning?)
+                self._dev.close()
+                self.initialize()
+                reinit_no += 1
+                if reinit_no >= 5:
+                    raise RuntimeError(
+                        f"Check detector connection. "
+                        "Number of performed reinitializations: {reinit_no}."
+                    )
 
         return data
 
