@@ -328,14 +328,10 @@ def moveTo(config: Config, x: float, y: float, z: float, mock_devices: bool):
     help="Whether to save the plot of the output data",
 )
 @click.option(
-    "-post",
-    "postproc",
-    default="raw",
-    type=click.Choice(["raw", "mean", "fft"]),
-    help="Postprocessing of obtained measurements",
-)
-@click.option(
-    "-f", "chop_freq", type=float, help="Signal modulation frequency in Hz (if used)"
+    "-mf",
+    "modulfreq",
+    type=float,
+    help="Signal modulation frequency used to calculate FFT results. Required for plotting",
 )
 @option_mock_devices
 @pass_config
@@ -354,8 +350,7 @@ def scan(
     timestamp,
     plot,
     plot_save,
-    postproc,
-    chop_freq,
+    modulfreq,
     mock_devices,
 ):
     """
@@ -392,26 +387,21 @@ def scan(
     Destination for data can be provided via '-o' option. It accepts a file
     name or whole valid path (may be relative) with file name (file name
     here is necessary). Output file is characterized by extension provided
-    to the file. The CLI currently handles only CSV (`.csv` or `.txt`
-    extensions) and HDF5 ("h5", "he5", "hdf5", or "hdf") files. In case if
+    to the file. The CLI currently handles only CSV ('.csv' or '.txt'
+    extensions) and HDF5 ('h5', 'he5', 'hdf5', or 'hdf') files. In case if
     provided file extension is unknown the CLI will default to CSV.
     Providing '-ts' flag appends timestamp to the file name. When provided
     path matches with existing file then timestamp will be added by default.
 
     The result of measurement is a series of samples per single scanning point
     (number of samples correspond to '-ds' value). Data can be additionally
-    postprocessed. Postprocessing setting is changed with '-post' option.
-    Available options are: 'mean' (average of samples per measured point), or
-    'fft' (data point measured at specified frequency). 'fft' mode requires
-    additional value passed with '-f' option (modulation frequency of the
-    signal).
+    postprocessed - calculation of FFT. FFT is calculated only if signal
+    modulation frequency is provided with 'modulfreq' option.
 
     Since after postprocessing each point has single numerical value,
     the program can provide a simple plot (flag '-plt'). With '-plt' flag
     program will generate and display the plot. If '-plts' is provided
-    the plot will not be displayed but saved to file. If the scan contains
-    only single line the plot will contain line plot but for more scan lines
-    the plot will display heatmap.
+    the plot will not be displayed but saved to file instead.
 
     \b
     Examples of valid ranges:
@@ -460,9 +450,7 @@ def scan(
         outpath, extension = parse_filepath(filepath=outpath, timestamp=timestamp)
     except ValueError as e:
         raise click.UsageError("Path needs to point to a file")
-    if postproc == "raw" and plot:
-        raise click.UsageError("Can't plot raw data")
-    elif postproc == "fft" and chop_freq is None:
+    if plot and modulfreq is None:
         raise click.UsageError("Can't plot FFT data without modulation frequency")
 
     # initialize devices
@@ -519,7 +507,7 @@ def scan(
     )
     scheduler.make_schedule()
     scheduler.fill_metadata(metadata_output=metadata)
-    metadata["signal modulation frequency [Hz]"] = chop_freq
+    metadata["signal modulation frequency [Hz]"] = modulfreq
 
     # print the setup parameters and ask for confirmation
     click.echo("---")
@@ -566,15 +554,23 @@ def scan(
         click.echo("\tMeasurement finished")
 
         # save raw data to file
-        saving(data=data, metadata=metadata, path=outpath, extension=extension)
 
-        if postproc != "raw":
+        if modulfreq is not None:
             # do the postprocessing
-            click.echo(f"Postprocessing - mode {postproc}")
+            click.echo(f"Postprocessing - calculating FFT for provided frequency")
             try:
-                postprocessing(data, postproc, chop_freq, det_freq.freq * 1000)
+                postprocessing(
+                    data=data,
+                    modulation_frequency=modulfreq,
+                    det_freq=det_freq.freq * 1000,
+                )
             except BaseException as exception_any:
-                saving(data, outpath, "failed_postproc")
+                saving(
+                    data=data,
+                    path=outpath,
+                    label="failed_postproc",
+                    extension=extension,
+                )
                 click.echo("Exception while performing postprocessing")
                 config.logger.error(exception_any)
                 click.echo(exception_any)
@@ -582,8 +578,7 @@ def scan(
                 # raise click.Abort
             click.echo("\tPostprocessing finished")
 
-            # save processed data to file
-            saving(data, metadata=metadata, path=outpath, label="postproc")
+        saving(data=data, metadata=metadata, path=outpath, extension=extension)
 
         if plot or plot_save:
             plotting(data, path=outpath, save=plot_save, show=plot)

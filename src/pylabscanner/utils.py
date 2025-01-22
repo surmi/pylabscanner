@@ -212,17 +212,14 @@ def _closest_val(data: npt.ArrayLike, x: float) -> Tuple[int, float]:
 
 def postprocessing(
     data: pd.DataFrame,
-    mode: str | List[str],
     modulation_frequency: float = None,
     det_freq: float | int = None,
 ):
-    """In-place processing of raw data from measurements.
+    """In-place FFT processing of raw data from measurements.
     Data after processing is appended as a new column.
-    'modulation_frequency' and 'det_freq' are necessary only for the 'fft' mode.
 
     Args:
         data (pd.DataFrame): dataframe with raw data
-        mode (str|List[str]): what processing method to apply
         modulation_frequency (float, optional): frequency of signal modulation
         to read value from after application of FFT. Defaults to None.
         det_freq (float,int, optional): sampling frequency of the detector
@@ -245,32 +242,26 @@ def postprocessing(
         workdata = data["MEASUREMENT"]
 
     # DATA PROCESSING
-    if "mean" in mode:
-        val = workdata.map(lambda x: np.mean(x))
-        data["MEAN"] = val
-        return val
+    if modulation_frequency is None:
+        raise ValueError("Signal frequency required")
+    if det_freq is None:
+        raise ValueError("Signal sample spacing required")
 
-    elif "fft" in mode:
-        if modulation_frequency is None:
-            raise ValueError("Signal frequency required")
-        if det_freq is None:
-            raise ValueError("Signal sample spacing required")
+    fft = workdata.map(lambda x: np.fft.rfft(x))
 
-        fft = workdata.map(lambda x: np.fft.rfft(x))
-
-        # calculate closes frequency bin
-        sample_spacing = 1 / det_freq
-        freqs = []
-        if isinstance(workdata[0], list):
-            freqs = np.fft.rfftfreq(len(workdata[0]), sample_spacing)
-        else:
-            freqs = np.fft.rfftfreq(workdata[0].size, sample_spacing)
-        ind, freq = _closest_val(freqs, modulation_frequency)
-        # TODO: check if normalization is correct (1/N)
-        val = fft.map(lambda x: np.abs(x[ind]) / x.size)
-        data["FFT"] = val
-        data["FFT_freq"] = freq
-        return freq, val
+    # calculate closes frequency bin
+    sample_spacing = 1 / det_freq
+    freqs = []
+    if isinstance(workdata[0], list):
+        freqs = np.fft.rfftfreq(len(workdata[0]), sample_spacing)
+    else:
+        freqs = np.fft.rfftfreq(workdata[0].size, sample_spacing)
+    ind, freq = _closest_val(freqs, modulation_frequency)
+    # TODO: check if normalization is correct (1/N)
+    val = fft.map(lambda x: np.abs(x[ind]) / x.size)
+    data["FFT"] = val
+    data["FFT_freq"] = freq
+    return freq, val
 
 
 def _predict_plot(data: pd.DataFrame, silent=False) -> Tuple[str, List[str]]:
@@ -288,9 +279,9 @@ def _predict_plot(data: pd.DataFrame, silent=False) -> Tuple[str, List[str]]:
         Tuple[str, List[str]]: type of the plot ('2D' or '3D') and order of
             axis (horizontal and vertical correspondingly).
     """
-    ux = data["X"].unique()
-    uy = data["Y"].unique()
-    uz = data["Z"].unique()
+    ux = data["x"].unique()
+    uy = data["y"].unique()
+    uz = data["z"].unique()
     nx = ux.size
     ny = uy.size
     nz = uz.size
@@ -301,22 +292,22 @@ def _predict_plot(data: pd.DataFrame, silent=False) -> Tuple[str, List[str]]:
         # we need a 3D plot (2 axis + val)
         # e.g. imshow(), pcolormesh(), contour(), contourf()
         if nx == 1:
-            axorder = ["Y", "Z"]
+            axorder = ["y", "z"]
         elif ny == 1:
-            axorder = ["X", "Z"]
+            axorder = ["x", "z"]
         else:
-            axorder = ["X", "Y"]
+            axorder = ["x", "y"]
         return "3D", axorder
     elif np.count_nonzero(np.equal(testar, 1)) == 2:
         # two axis doesn't change
         # we need a 2D plot (1 axis + val)
         # e.g. scatter(), plot()
         if nx != 1:
-            axorder = ["X"]
+            axorder = ["x"]
         elif ny != 1:
-            axorder = ["Y"]
+            axorder = ["y"]
         else:
-            axorder = ["Z"]
+            axorder = ["z"]
         return "2D", axorder
     elif not silent:
         raise ValueError("Can't predict type of the plot")
@@ -354,12 +345,9 @@ def plotting(
     if not (save or show):
         return None
     # if processed data available create two axes to display both
-    data.sort_values(by=["X", "Y", "Z"], inplace=True)
+    data.sort_values(by=["x", "y", "z"], inplace=True)
     n = 0
     labels = []
-    if "MEAN" in data.columns:
-        n += 1
-        labels.append("MEAN")
     if "FFT" in data.columns:
         n += 1
         labels.append("FFT")
@@ -494,16 +482,17 @@ def saving(
     label: str = None,
 ) -> None:
     """Save data to a file.
-    If `metadata` provided then saves to HDF5 file (with extension .h5).
-    Otherwise saves to CSV (with .csv extension).
+    Choice to what format of file is made based on the `extension` parameter.
+    Two choices are available currently: `csv` and `hdf5`.
 
-    NOTE: saving to CSV reduces precision of floating numbers in
+    NOTE: saving to `csv` reduces precision of floating numbers in
     `MEASUREMENT` column.
 
     Args:
         data (pd.DataFrame): data frame with measurements.
         path (Path): path to where the data should be saved.
-        metadata (dict | None, optional): metadata to attach to the file.
+        extension (str): requested output file extension.
+        metadata (dict | None, optional): measurement metadata to attach. Defaults to None.
         label (str, optional): if provided, will be attached to the file name.
             Defaults to None.
     """
@@ -541,9 +530,9 @@ def saving(
                         f.attrs[key] = value if value is not None else "None"
     elif extension == "csv":
         with path.open("w+") as f:
-            data.to_csv(f)
+            data.to_csv(f, index_label="no.")
         if metadata is not None:
-            metadata_path = filepath_add_label(path, "_meta")
+            metadata_path = filepath_add_label(path, "meta")
             with metadata_path.open("w+") as f:
                 field_names = list(metadata.keys())
                 writer = csv.DictWriter(f, fieldnames=field_names)
