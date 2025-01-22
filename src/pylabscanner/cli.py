@@ -389,15 +389,14 @@ def scan(
     beginning:end:number_of-points_to_scan. All values passed as ranges are
     assumed to be in mm.
 
-    File name or whole valid path (may be relative) with file name can be
-    provided via '-o' option.
-    --------------------------------
-    Note that file is open in w+ mode (it will be
-    overwritten if exists). If '-ext' option is provided the '-ext' value
-    will be appended to the value of '-o' option as extension. Without '-ext'
-    option and with no extension in '-o' value default extension is '.txt'.
-    ----------------------------------
-    Providing '-ts' flag appends timestamp to the file name.
+    Destination for data can be provided via '-o' option. It accepts a file
+    name or whole valid path (may be relative) with file name (file name
+    here is necessary). Output file is characterized by extension provided
+    to the file. The CLI currently handles only CSV (`.csv` or `.txt`
+    extensions) and HDF5 ("h5", "he5", "hdf5", or "hdf") files. In case if
+    provided file extension is unknown the CLI will default to CSV.
+    Providing '-ts' flag appends timestamp to the file name. When provided
+    path matches with existing file then timestamp will be added by default.
 
     The result of measurement is a series of samples per single scanning point
     (number of samples correspond to '-ds' value). Data can be additionally
