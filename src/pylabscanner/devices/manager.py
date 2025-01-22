@@ -266,7 +266,12 @@ class LiveView:
     and handling standard input to identify when to stop the program.
     """
 
-    def __init__(self, manager: DeviceManager, logger: logging.Logger = None) -> None:
+    def __init__(
+        self,
+        manager: DeviceManager,
+        logger: logging.Logger = None,
+        plot_fft_limit: float = 0.04,
+    ) -> None:
         """Initialize all threads necessary for concurrent detector control,
         plotting and reading from standard input (to stop the execution).
 
@@ -277,6 +282,7 @@ class LiveView:
         self.manager = manager
         self.measurements = Queue()
         self.shutdown_event = threading.Event()
+        self.plot_fft_limit = plot_fft_limit
         if logger is None:
             self._log = logging.getLogger(__name__)
         else:
@@ -349,8 +355,8 @@ class LiveView:
                 det_no_samp = payload["det_no_samp"]
                 det_freq = payload["det_freq"] * 1000
                 dt = 1 / det_freq
-                yx = np.arange(0, det_no_samp * dt, dt)
-                fft = np.abs(np.fft.rfft(y))
+                yx = np.linspace(0, det_no_samp * dt, det_no_samp)
+                fft = np.abs(np.fft.rfft(y) / len(y))
                 fftx = np.fft.rfftfreq(len(y), dt)
             except Empty:
                 pass
@@ -365,11 +371,10 @@ class LiveView:
 
             # plot fft
             plt.subplot(212)
-            plt.plot(fftx, fft)
-            plt.ylabel("Amplitude [V]")
+            plt.plot(fftx[1:], fft[1:] * 1000)
+            plt.ylabel("Amplitude [mV]")
             plt.xlabel("Frequency [Hz]")
-            plt.ylim(bottom=0.0, top=5.0)
-            # plt.xlim(left=0.0, right=1050)
+            plt.ylim(bottom=0.0, top=self.plot_fft_limit * 1000)
             plt.xlim(left=0.0)
 
             plt.draw()

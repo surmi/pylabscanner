@@ -780,10 +780,22 @@ def getPosition(config: Config, mock_devices: bool):
     help="Detector sampling frequency (in kHz)",
     default="1",
 )
+@click.option(
+    "--fftylim",
+    type=float,
+    help="Value in volts limiting y axis in FFT plot.",
+    show_default=True,
+    default=0.04,
+)
 @option_mock_devices
 @pass_config
 def liveView(
-    config: Config, det_sens: str, det_samp: str, det_freq: str, mock_devices: bool
+    config: Config,
+    det_sens: str,
+    det_samp: str,
+    det_freq: str,
+    fftylim: float,
+    mock_devices: bool,
 ):
     """
     Displays live readout and its FFT from the detector.
@@ -805,7 +817,7 @@ def liveView(
             samples=det_samp,
             freq=det_freq,
         )
-        lv = LiveView(manager=manager)
+        lv = LiveView(manager=manager, plot_fft_limit=fftylim)
     except DeviceNotFoundError as e:
         config.logger.error("Detector not found on initialization.")
         config.logger.error(e)
