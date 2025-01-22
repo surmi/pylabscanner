@@ -315,7 +315,11 @@ def _predict_plot(data: pd.DataFrame, silent=False) -> Tuple[str, List[str]]:
 
 
 def plotting(
-    data: pd.DataFrame, path: Path = None, save=False, show=True
+    data: pd.DataFrame,
+    path: Path = None,
+    save=False,
+    show=True,
+    plt_config: dict | None = None,
 ) -> Tuple[Figure, Any] | None:
     """Plot processed measurements.
     The out path in 'path' argument is assumed to be a full path to the output file
@@ -365,7 +369,11 @@ def plotting(
     )
 
     # define type of plots
-    pltype, axorder = _predict_plot(data)
+    if plt_config is None:
+        pltype, axorder = _predict_plot(data)
+    else:
+        pltype = plt_config["pltype"]
+        axorder = plt_config["axorder"]
     if isinstance(axs, plt.Axes):
         axs = np.array([axs])
     for label, ax in zip(labels, axs.flat):

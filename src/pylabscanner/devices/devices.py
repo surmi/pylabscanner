@@ -486,7 +486,6 @@ class BoloLine(Detector):
             data = self.pairwise(self._read())
             # data = self.pairwise(self._trimans(self._read()))
             if len(data) != self._samples.nsamp:
-                print(f"samples: {len(data)}. Reinitializing...")
                 # TODO: log reinitialization number (as a warning?)
                 self._dev.close()
                 self.initialize()

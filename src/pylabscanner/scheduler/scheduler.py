@@ -60,6 +60,7 @@ class ScanScheduler:
         self.is_built = False
         self.ta = 0.0  # acqusition time estimaiton (whole scan)
         self.ta_act = 0.0  # actual asqusition time
+        self.last_position = None
 
     @property
     def manager(self):
@@ -319,6 +320,7 @@ class ScanScheduler:
         if self.fin_home:
             home_action = ActionHome(self._manager)
             self.actions.append(home_action)
+            self.ta += home_action.ta(position_from=self.last_position)
             self.ta += home_action.ta()
         self.is_built = True
 
@@ -437,6 +439,7 @@ class ScanScheduler:
 
                 # reverse the line
                 reverse = not reverse
+            self.last_position = previous_position
 
         else:
             raise NotImplementedError("Single line and 3D scans not implemented yet")

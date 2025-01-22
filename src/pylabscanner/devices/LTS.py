@@ -63,6 +63,9 @@ class LTS(aptdevice_motor.APTDevice_Motor):
         self.velparams = self.velparams_[0][0]
         """Alias to first bay/channel of :data:`APTDevice_Motor.velparams_`"""
 
+        self.homeparams = self.homeparams_[0][0]
+        """Alias to first bay/channel of :data:`APTDevice_Motor.homeparams_`"""
+
         self.genmoveparams = self.genmoveparams_[0][0]
         """Alias to first bay/channel of :data:`APTDevice_Motor.genmoveparams_`"""
 
@@ -225,9 +228,7 @@ class LTS(aptdevice_motor.APTDevice_Motor):
                 while not self.status["homed"]:
                     await asyncio.sleep(interval)
 
-    async def aso_move_absolute(
-        self, position: int | float, waitfinished: bool = True
-    ) -> None:
+    async def aso_move_absolute(self, position: int, waitfinished: bool = True) -> None:
         """Move a stage (absolute move command) with built in waiting for the
         action to finish.
 
@@ -235,7 +236,7 @@ class LTS(aptdevice_motor.APTDevice_Motor):
         timeout.
 
         Args:
-            position (int | float): absolute position to move to.
+            position (int): absolute position to move to in steps.
             waitfinished (bool, optional): if `True` waits for the motion to
                 finish. Defaults to `True`.
 
@@ -255,23 +256,25 @@ class LTS(aptdevice_motor.APTDevice_Motor):
                 "Move absolute: required position out of physical limits of the stage."
             )
 
-        super().move_absolute(position=position, now=True, bay=bay, channel=channel)
-        self.status["move_completed"] = False
+        # move only if currenlty not in the position
+        if self.status["position"] != position:
+            super().move_absolute(position=position, now=True, bay=bay, channel=channel)
+            self.status["move_completed"] = False
 
-        interval = 0.1
+            interval = 0.1
 
-        # wait for the movement to start
-        while not (self.status["moving_forward"] or self.status["moving_reverse"]):
-            await asyncio.sleep(interval)
-
-        # wait for motion to finish
-        if waitfinished:
-            while not self.status["move_completed"]:
+            # wait for the movement to start
+            while not (self.status["moving_forward"] or self.status["moving_reverse"]):
                 await asyncio.sleep(interval)
 
-        # Also viable option
-        # while self.status['moving_forward'] or self.status['moving_reverse']:
-        #     await asyncio.sleep(interval)
+            # wait for motion to finish
+            if waitfinished:
+                while not self.status["move_completed"]:
+                    await asyncio.sleep(interval)
+
+            # Also viable option
+            # while self.status['moving_forward'] or self.status['moving_reverse']:
+            #     await asyncio.sleep(interval)
 
     def sync_home(self) -> None:
         """Homes the stage without waiting for the action to finish."""
