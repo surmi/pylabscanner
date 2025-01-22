@@ -818,7 +818,7 @@ class LTSStage(MotorizedStage):
     @Device.check_initialized
     async def home(self):
         """Home the stage asynchronously."""
-        self.stage.aso_home(waitfinished=True)
+        await self.stage.aso_home(waitfinished=True)
 
     @Device.check_initialized
     async def go_to(self, destination: float):
