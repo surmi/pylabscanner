@@ -60,10 +60,6 @@ class TestAction:
         action.run()
         assert manager.current_position == default_homed_position
 
-    @pytest.mark.skip(reason="Functionality not implemented yet")
-    def test_fly_by(self, mock_devices: bool):
-        pass
-
     def test_pt_by_pt(
         self,
         default_manager: DeviceManager,

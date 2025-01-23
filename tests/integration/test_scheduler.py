@@ -93,10 +93,6 @@ class TestScheduler:
         assert backward_last_position["y"] == ranges["y"][1]
         assert backward_last_position["z"] == ranges["z"][0]
 
-    @pytest.mark.skip(reason="Functionality not implemented yet")
-    def test_schedule_flyby(self, default_manager: DeviceManager):
-        pass
-
     def test_schedule_run(self, default_manager: DeviceManager):
         ranges = {
             "x": np.linspace(0, 100, 3, endpoint=True),

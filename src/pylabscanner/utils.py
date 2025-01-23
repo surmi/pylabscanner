@@ -80,16 +80,12 @@ def conv_to_steps(
         return retPos
 
 
-def parse_scan_parameters(mode: str, linestart: str):
-    if mode == "ptbypt":
-        mode = LineType.PTBYPT
-    elif mode == "flyby":
-        mode = LineType.FLYBY
+def parse_scan_parameters(linestart: str):
     if linestart == "snake":
         linestart = LineStart.SNAKE
     elif linestart == "cr":
         linestart = LineStart.CR
-    return (mode, linestart)
+    return linestart
 
 
 def parse_range(range: str) -> npt.NDArray | None:

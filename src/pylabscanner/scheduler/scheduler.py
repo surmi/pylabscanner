@@ -9,7 +9,6 @@ from tqdm import tqdm
 from ..devices.devices import calc_startposmod
 from ..devices.manager import DeviceManager
 from .commands import (
-    ActionFlyBy,
     ActionHome,
     ActionMoveTo,
     ActionPtByPt,
@@ -30,13 +29,11 @@ class ScanScheduler:
     already scheduled, the plan will be descheduled (will require `make_schedule()`).
     """
 
-    # TODO: validate fly-by range has at least 2 points
-    # TODO: validate fly-by range can fit in the stage range
     def __init__(
         self,
         manager: DeviceManager,
         ranges: dict[str, ndarray],
-        line_type: LineType = LineType.FLYBY,
+        line_type: LineType = LineType.PTBYPT,
         line_start: LineStart = LineStart.SNAKE,
         fin_home: bool = True,
         use_tqdm: bool = True,
@@ -98,126 +95,11 @@ class ScanScheduler:
     def make_schedule(self):
         """Build the scan routine."""
 
-        # FLYBY ---------------------------------------------------------------
-        if self.line_type == LineType.FLYBY:
-            raise NotImplementedError(
-                "FlyBy scanning not implemented yet"
-            )  # TODO: require update after new changes to pt-by-pt scan will be tested
-            # vels = [
-            #     steps2mm(stage.velparams["max_velocity"], stage.convunits["vel"])
-            #     for stage in self.stages
-            # ]
-            # line scan always starts at min
-            start_pos = {axis: self._ranges[axis].min() for axis in self._ranges}
-            t_ru = []
-            s_ru = []
-            for s in self.stages:
-                ss, tt = calc_startposmod(s)
-                s_ru.append(ss)
-                t_ru.append(tt)
-            # go to start position
-            # s_ru, t_ru = calc_startposmod(self.stages[0])
-            start_pos[0] = start_pos[0] - s_ru[0]
-            self.actions.append(ActionMoveTo(self.stages, start_pos))
-            maxind = max(range(len(start_pos)), key=start_pos.__getitem__)
-            self.ta += calc_movetime(self.stages[maxind], max(start_pos))
-
-            # do a single line
-            reverse = False
-            self.actions.append(
-                ActionFlyBy(
-                    self.stages[self.order[0].value],
-                    self.detector,
-                    self._ranges[self.order[0].value],
-                    self.order,
-                    start_pos[1:],
-                    t_ru[self.order[0].value],
-                    s_ru[self.order[0].value],
-                    reverse=reverse,
-                )
-            )
-            self.ta += calc_movetime(
-                stage=self.stages[self.order[0].value],
-                dist=2 * s_ru[self.order[0].value]
-                + self._ranges[self.order[0].value].max()
-                - self._ranges[self.order[0].value].min(),
-            )
-
-            # if order[1] or order[2] is bigger than 1,
-            # move correct iterator by one and do a for loop.
-            # Otherwise this is a single line scan and loop is not necessary.
-            if (
-                len(self._ranges[self.order[1].value]) > 1
-                or len(self._ranges[self.order[2].value]) > 1
-            ):
-                # reduce range by one (one line already done)
-                range_2 = self._ranges[self.order[2].value]
-                range_1 = self._ranges[self.order[1].value]
-                if len(range_1) > 1:
-                    range_1 = range_1[1:]
-                else:
-                    range_2 = range_2[1:]
-
-                # for loop: move to the beginning of the next line, do the line
-                for i in range_2:
-                    for j in range_1:
-                        # go to a new line
-                        new_line_pos = [0.0] * 3
-                        if self.line_start == LineStart.SNAKE:
-                            if reverse:
-                                # stage is at min of order[0] range
-                                new_line_pos[self.order[0].value] = (
-                                    self._ranges[self.order[0].value].min()
-                                    - s_ru[self.order[0].value]
-                                )
-                                pass
-                            else:
-                                # stage is at max of order[0] range
-                                new_line_pos[self.order[0].value] = (
-                                    self._ranges[self.order[0].value].max()
-                                    + s_ru[self.order[0].value]
-                                )
-
-                            new_line_pos[self.order[1].value] = j
-                            new_line_pos[self.order[2].value] = i
-
-                            reverse = not reverse
-                        elif self.line_start == LineStart.CR:
-                            new_line_pos[self.order[0].value] = (
-                                self._ranges[self.order[0].value].min()
-                                - s_ru[self.order[0].value]
-                            )
-                            new_line_pos[self.order[1].value] = j
-                            new_line_pos[self.order[2].value] = i
-
-                        # TODO: add moving between lines to the time estimation
-                        self.actions.append(ActionMoveTo(self.stages, new_line_pos))
-
-                        # do the line
-                        self.actions.append(
-                            ActionFlyBy(
-                                self.stages[self.order[0].value],
-                                self.detector,
-                                self._ranges[self.order[0].value],
-                                self.order,
-                                [j, i],
-                                t_ru[self.order[0].value],
-                                s_ru[self.order[0].value],
-                                reverse=reverse,
-                            )
-                        )
-                        self.ta += calc_movetime(
-                            stage=self.stages[self.order[0].value],
-                            dist=2 * s_ru
-                            + self._ranges[self.order[0].value].max()
-                            - self._ranges[self.order[0].value].min(),
-                        )
-
-        elif self.line_type == LineType.PTBYPT:
+        if self.line_type == LineType.PTBYPT:
             self._build_line_scans()
         else:
             raise ValueError(
-                f"Expected line_type of value {LineType.FLYBY} or "
+                f"Expected line_type of value "
                 f"{LineType.PTBYPT}. Got {self.line_type}"
             )
 

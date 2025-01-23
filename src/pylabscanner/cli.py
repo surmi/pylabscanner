@@ -270,13 +270,6 @@ def moveTo(config: Config, x: float, y: float, z: float, mock_devices: bool):
     help="File name or path to the file in which results will be written.",
 )
 @click.option(
-    "-m",
-    "mode",
-    type=click.Choice(["flyby", "ptbypt"]),
-    default="ptbypt",
-    help="Scanning mode",
-)
-@click.option(
     "-s",
     "linestart",
     type=click.Choice(["snake", "cr"]),
@@ -341,7 +334,6 @@ def scan(
     y,
     z,
     outpath: Path,
-    mode,
     noconfirmation,
     linestart,
     det_sens,
@@ -362,14 +354,7 @@ def scan(
     Detector has three settings: sensor selection '-dn', number of samples per
     measurement '-ds', and sampling frequency '-df'. Number of samples and
     sampling frequency influences time of single measurement. Note that this
-    influences how much time the stages will wait at given position (for
-    'ptbypt' mode) or how large distance will be swept over during single
-    measurement (for 'flyby' mode).
-
-    Two scanning modes are available: 'flyby' and 'ptbypt'.
-    'flyby' performs measurements during sweeping motion along one of the axis.
-    'ptbypt' moves all stages to desired position, performs measurement, and
-    moves to the next planned measurement point.
+    influences how much time the stages will wait at given position.
 
     This command provides also two options ('-s') on which side new line will
     begin. 'snake' will force beginning of next lines to alternate (creating
@@ -437,7 +422,7 @@ def scan(
     if measrngx is None and measrngy is None and measrngz is None:
         # return early if not enough information is provided
         raise click.UsageError("Provide scanning range for at least one axis")
-    mode, linestart = parse_scan_parameters(mode=mode, linestart=linestart)
+    linestart = parse_scan_parameters(linestart=linestart)
     det_sens, det_samp, det_freq = parse_detector_settings(
         detsens=det_sens, detsamp=det_samp, detfreq=det_freq
     )
@@ -497,7 +482,6 @@ def scan(
     scheduler = ScanScheduler(
         manager=manager,
         ranges=ranges,
-        line_type=mode,
         line_start=linestart,
     )
     scheduler.make_schedule()
