@@ -104,7 +104,11 @@ class ScanScheduler:
             )
 
         if self.fin_home:
-            home_action = ActionHome(self._manager)
+            long_range = {}
+            for label in last_position:
+                if last_position[label] >= 30.0:
+                    long_range[label] = True
+            home_action = ActionHome(self._manager, long_range=long_range)
             self.actions.append(home_action)
             self.ta += home_action.ta(position_from=self.last_position)
             self.ta += home_action.ta()
@@ -283,4 +287,6 @@ class ScanScheduler:
             self.last_position = previous_position
 
         else:
-            raise NotImplementedError("3D scans not implemented yet")
+            raise NotImplementedError("Single line and 3D scans not implemented yet")
+
+        return previous_position  # last position

@@ -91,15 +91,21 @@ class ActionMoveTo(Action):
 class ActionHome(Action):
     """Home stage(s)."""
 
-    def __init__(self, manager: DeviceManager, stage_label: str | list[str] = "all"):
+    def __init__(
+        self,
+        manager: DeviceManager,
+        stage_label: str | list[str] = "all",
+        long_range: dict[str, bool] = dict(),
+    ):
         self.manager = manager
         self.stage_label = stage_label
+        self.long_range = long_range
 
     def __str__(self) -> str:
         return f"Homing stage(s) {self.stage_label}"
 
     def run(self):
-        self.manager.home(self.stage_label)
+        self.manager.home(self.stage_label, long_range=self.long_range)
 
     def ta(
         self,
