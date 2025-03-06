@@ -506,11 +506,7 @@ def saving(
             Defaults to None.
     """
     if label is not None:
-        # modify filename
-        parent = path.parent
-        stem = path.stem + f"_{label}"
-        suffix = path.suffix
-        path = parent / f"{stem}{suffix}"
+        path = filepath_add_label(path=path, label=label)
     path.parent.mkdir(exist_ok=True)
     if extension in ("h5", "he5", "hdf5", "hdf"):
         ds_dtype = [

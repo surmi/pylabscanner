@@ -25,6 +25,7 @@ from .utils import (
     postprocessing,
     saving,
     setup_manager,
+    filepath_add_label,
 )
 
 
@@ -544,22 +545,25 @@ def scan(
                     det_freq=det_freq.freq * 1000,
                 )
             except BaseException as exception_any:
+                click.echo("Exception while performing postprocessing")
+                failed_path = filepath_add_label(path=outpath, label="failed_postproc")
+                click.echo(f"Saving partial data to: {failed_path}")
                 saving(
                     data=data,
-                    path=outpath,
-                    label="failed_postproc",
+                    path=failed_path,
                     extension=extension,
                 )
-                click.echo("Exception while performing postprocessing")
                 config.logger.error(exception_any)
                 click.echo(exception_any)
                 raise exception_any
                 # raise click.Abort
             click.echo("\tPostprocessing finished")
 
+        click.echo(f"Saving data to: {outpath}")
         saving(data=data, metadata=metadata, path=outpath, extension=extension)
 
         if plot or plot_save:
+            click.echo(f"Plotting data")
             plotting(data, path=outpath, save=plot_save, show=plot)
     else:
         click.echo("Measurement aborted")
