@@ -393,6 +393,8 @@ def plotting(
                 origin="lower",
                 extent=[x.min(), x.max(), y.min(), y.max()],
             )
+            plt.xlabel(f"{axorder[0]} [mm]")
+            plt.ylabel(f"{axorder[1]} [mm]")
             fig.colorbar(img, ax=ax, orientation="horizontal")
             ax.set_title(label)
             label_axis = "_" + axorder[0] + axorder[1]
