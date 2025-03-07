@@ -641,9 +641,7 @@ def plot(
 
         data = pd.read_csv(files[0], index_col=0)
         # TODO: correct extension checking
-        outpath, extension = parse_filepath(
-            filepath=files[0], timestamp=None, extension=".png"
-        )
+        outpath, extension = parse_filepath(filepath=files[0], timestamp=None)
 
         if postproc is None:
             # plot all processed data
@@ -700,6 +698,8 @@ def plot(
         raise NotImplementedError("Plotting multiple files not implemented yet")
         if postproc is None:
             raise click.UsageError("No processing mode selected")
+    else:
+        click.echo("No files provided")
 
 
 @cli.command()
