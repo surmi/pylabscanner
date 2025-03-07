@@ -389,17 +389,34 @@ def plotting(
             uy = data[axorder[1]].unique()
             y = data[axorder[1]]
             val = data[label].to_numpy().reshape((uy.size, ux.size))
+
+            # center ticks
+            centers = [x.min(), x.max(), y.min(), y.max()]
+            (dx,) = np.diff(centers[:2]) / (val.shape[1] - 1)
+            (dy,) = -np.diff(centers[2:]) / (val.shape[0] - 1)
+            extent = [
+                centers[0] - dx / 2,
+                centers[1] + dx / 2,
+                centers[2] + dy / 2,
+                centers[3] - dy / 2,
+            ]
+            # plt.imshow(val, cmap = 'jet', interpolation=None, extent=extent, aspect='auto')
+
             img = ax.imshow(
                 val,
                 cmap="inferno",
                 aspect="equal",
                 origin="lower",
-                extent=[x.min(), x.max(), y.min(), y.max()],
+                extent=extent,
             )
+            plt.xticks(np.arange(centers[0], centers[1] + dx, dx))
+            plt.yticks(np.arange(centers[3], centers[2] + dy, dy))
+
+            # axis labels
             plt.xlabel(f"{axorder[0]} [mm]")
             plt.ylabel(f"{axorder[1]} [mm]")
 
-            if orientation == "auto"
+            if orientation == "auto":
                 if (x.max() - x.min()) / (y.max() - y.min()) > 1.5:
                     orientation = "horizontal"
                 else:
