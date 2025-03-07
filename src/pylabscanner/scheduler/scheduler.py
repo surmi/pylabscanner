@@ -105,8 +105,8 @@ class ScanScheduler:
 
         if self.fin_home:
             long_range = {}
-            for label in last_position:
-                if last_position[label] >= 30.0:
+            for label in self.last_position:
+                if self.last_position[label] >= 30.0:
                     long_range[label] = True
             home_action = ActionHome(self._manager, long_range=long_range)
             self.actions.append(home_action)
@@ -288,5 +288,3 @@ class ScanScheduler:
 
         else:
             raise NotImplementedError("Single line and 3D scans not implemented yet")
-
-        return previous_position  # last position
