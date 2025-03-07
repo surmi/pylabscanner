@@ -126,6 +126,11 @@ class DeviceManager:
             res[axis_name] = self.stages[axis_name].current_position
         return res
 
+    async def _long_range_home(self, stage: LTSStage):
+        move_to_position = 10.0  # mm
+        await stage.go_to(move_to_position)
+        await stage.home()
+
     async def home_async(
         self, stage_label: str | list[str], long_range: dict[str, bool] = dict()
     ):
@@ -141,15 +146,17 @@ class DeviceManager:
                 if long_range.get(label, False):
                     tasks.append(
                         tg.create_task(
-                            stage.go_to(20.0),
-                            name=f"Moving stage labeled as {label} to position {20.0}",
+                            self._long_range_home(stage),
+                            name=f"Long range homing stage with label {label.lower()}",
                         )
                     )
-                tasks.append(
-                    tg.create_task(
-                        stage.home(), name=f"Homing stage with label {label.lower()}"
-                    ),
-                )
+                else:
+                    tasks.append(
+                        tg.create_task(
+                            stage.home(),
+                            name=f"Homing stage with label {label.lower()}",
+                        ),
+                    )
 
     def home(self, stage_label: str | list[str], long_range: dict[str, bool] = dict()):
         run(self.home_async(stage_label=stage_label, long_range=long_range))

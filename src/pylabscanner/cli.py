@@ -183,7 +183,12 @@ def home(config: Config, stageslist, mock_devices: bool):
 
     click.echo("Homing...")
     start = time()
-    manager.home(stage_label=stageslist)
+    current_position = manager.current_position
+    long_range = {}
+    for label in current_position:
+        if current_position[label] >= 30:
+            long_range[label] = True
+    manager.home(stage_label=stageslist, long_range=long_range)
     # asyncio.run(aso_home_devs(stages), debug=config.debug)
     te_home = time()
     click.echo(f"\tStages homed in: {te_home-start:.2f}s")
