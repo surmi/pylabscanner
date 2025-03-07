@@ -332,6 +332,7 @@ def plotting(
             it. Defaults to False.
         show (bool, optional): whether to save the plot instead of displaying
             it. Defaults to False.
+        plt_config (dict | None): configuration of the plot. Defaults to None.
 
     Raises:
         ValueError: raised when input data frame does not contain columns with
@@ -366,11 +367,13 @@ def plotting(
 
     # define type of plots
     label_axis = None
-    if plt_config is None:
-        pltype, axorder = _predict_plot(data)
-    else:
-        pltype = plt_config["pltype"]
-        axorder = plt_config["axorder"]
+    pltype, axorder = _predict_plot(data)
+    orientation = "auto"
+    if plt_config is not None:
+        pltype = plt_config.get("pltype", pltype)
+        axorder = plt_config.get("axorder", axorder)
+        orientation = plt_config.get("orientation", "auto")
+
     if isinstance(axs, plt.Axes):
         axs = np.array([axs])
     for label, ax in zip(labels, axs.flat):
@@ -395,7 +398,14 @@ def plotting(
             )
             plt.xlabel(f"{axorder[0]} [mm]")
             plt.ylabel(f"{axorder[1]} [mm]")
-            fig.colorbar(img, ax=ax, orientation="horizontal")
+
+            if orientation == "auto"
+                if (x.max() - x.min()) / (y.max() - y.min()) > 1.5:
+                    orientation = "horizontal"
+                else:
+                    orientation = "vertical"
+            fig.colorbar(img, ax=ax, orientation=orientation)
+
             ax.set_title(label)
             label_axis = "_" + axorder[0] + axorder[1]
     if save:
