@@ -373,6 +373,7 @@ class LiveView:
                 dt = 1 / det_freq
                 yx = np.linspace(0, det_no_samp * dt, det_no_samp)
                 fft = np.abs(np.fft.rfft(y) / len(y))
+                fft[0] = 0  # mask 0
                 fftx = np.fft.rfftfreq(len(y), dt)
             except Empty:
                 pass
@@ -387,7 +388,29 @@ class LiveView:
 
             # plot fft
             plt.subplot(212)
-            plt.plot(fftx[1:], fft[1:] * 1000)
+            plt.plot(fftx, fft * 1000)
+
+            max_fft_value = fft.max()
+            max_fft_pos = fftx[np.argmax(fft)]
+            bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.72)
+            # arrowprops = dict(
+            #     arrowstyle="->", connectionstyle="angle,angleA=0,angleB=60"
+            # )
+            kw = dict(
+                xycoords="data",
+                textcoords="axes fraction",
+                # arrowprops=arrowprops,
+                bbox=bbox_props,
+                ha="left",
+                va="top",
+            )
+            plt.annotate(
+                f"max: {max_fft_value:.3f}mV\nmax pos: {max_fft_pos}Hz",
+                xy=(max_fft_pos, max_fft_value),
+                xytext=(0.7, 0.96),
+                **kw,
+            )
+
             plt.ylabel("Amplitude [mV]")
             plt.xlabel("Frequency [Hz]")
             plt.ylim(bottom=0.0, top=self.plot_fft_limit * 1000)
