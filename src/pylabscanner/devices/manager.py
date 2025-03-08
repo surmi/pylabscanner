@@ -391,7 +391,7 @@ class LiveView:
             plt.ylabel("Amplitude [mV]")
             plt.xlabel("Frequency [Hz]")
             plt.ylim(bottom=0.0, top=self.plot_fft_limit * 1000)
-            plt.xlim(left=0.0)
+            plt.xlim(left=0.0, right=1000.0)
 
             plt.draw()
             plt.pause(0.0001)
