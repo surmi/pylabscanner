@@ -415,7 +415,7 @@ def plotting(
             img = ax.imshow(
                 val,
                 cmap="inferno",
-                aspect="auto",
+                aspect="equal",
                 origin="lower",
                 extent=extent,
             )
