@@ -346,7 +346,6 @@ def plotting(
     if not (save or show):
         return None
     # if processed data available create two axes to display both
-    data.sort_values(by=["x", "y", "z"], inplace=True)
     n = 0
     labels = []
     if "FFT" in data.columns:
@@ -383,7 +382,19 @@ def plotting(
             ax.plot(x, y, "o", ms=4)
             ax.set_title(label)
             label_axis = "_" + axorder[0]
+
         elif pltype == "3D":
+            other_axis = [
+                ax_label for ax_label in ["x", "y", "z"] if ax_label not in axorder
+            ][0]
+            data.sort_values(
+                by=[
+                    other_axis,
+                    axorder[1],
+                    axorder[0],
+                ],
+                inplace=True,
+            )
             ux = data[axorder[0]].unique()
             x = data[axorder[0]]
             uy = data[axorder[1]].unique()
@@ -393,24 +404,24 @@ def plotting(
             # center ticks
             centers = [x.min(), x.max(), y.min(), y.max()]
             (dx,) = np.diff(centers[:2]) / (val.shape[1] - 1)
-            (dy,) = -np.diff(centers[2:]) / (val.shape[0] - 1)
+            (dy,) = np.diff(centers[2:]) / (val.shape[0] - 1)
             extent = [
                 centers[0] - dx / 2,
                 centers[1] + dx / 2,
-                centers[2] + dy / 2,
-                centers[3] - dy / 2,
+                centers[2] - dy / 2,
+                centers[3] + dy / 2,
             ]
-            # plt.imshow(val, cmap = 'jet', interpolation=None, extent=extent, aspect='auto')
 
             img = ax.imshow(
                 val,
                 cmap="inferno",
-                aspect="equal",
+                aspect="auto",
                 origin="lower",
                 extent=extent,
             )
-            plt.xticks(np.arange(centers[0], centers[1] + dx, dx))
-            plt.yticks(np.arange(centers[3], centers[2] + dy, dy))
+            plt.xticks(ux)
+            plt.tick_params("x", rotation=45)
+            plt.yticks(uy)
 
             # axis labels
             plt.xlabel(f"{axorder[0]} [mm]")
