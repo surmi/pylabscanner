@@ -405,7 +405,7 @@ class LiveView:
                 va="top",
             )
             plt.annotate(
-                f"max: {max_fft_value:.3f}mV\nmax pos: {max_fft_pos}Hz",
+                f"max: {max_fft_value*1000:.3f}mV\nmax pos: {max_fft_pos}Hz",
                 xy=(max_fft_pos, max_fft_value),
                 xytext=(0.7, 0.96),
                 **kw,
