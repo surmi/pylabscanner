@@ -332,6 +332,13 @@ def moveTo(config: Config, x: float, y: float, z: float, mock_devices: bool):
     type=float,
     help="Signal modulation frequency used to calculate FFT results. Required for plotting",
 )
+@click.option(
+    "-nh",
+    "no_home",
+    is_flag=True,
+    default=False,
+    help="Don't home after the scan",
+)
 @option_mock_devices
 @pass_config
 def scan(
@@ -349,6 +356,7 @@ def scan(
     plot,
     plot_save,
     modulfreq,
+    no_home,
     mock_devices,
 ):
     """
@@ -489,6 +497,7 @@ def scan(
         manager=manager,
         ranges=ranges,
         line_start=linestart,
+        fin_home=not no_home,
     )
     scheduler.make_schedule()
     scheduler.fill_metadata(metadata_output=metadata)
