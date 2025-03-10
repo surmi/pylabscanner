@@ -254,7 +254,7 @@ def postprocessing(
         freqs = np.fft.rfftfreq(workdata[0].size, sample_spacing)
     ind, freq = _closest_val(freqs, modulation_frequency)
     # TODO: check if normalization is correct (1/N)
-    val = fft.map(lambda x: np.abs(x[ind]) / x.size)
+    val = fft.map(lambda x: np.abs(x[ind]) / len(workdata[0]))
     data["FFT"] = val
     data["FFT_freq"] = freq
     return freq, val
