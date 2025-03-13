@@ -17,6 +17,7 @@ from .devices.manager import LiveView
 from .scheduler.scheduler import ScanScheduler
 from .utils import (
     _parse_detector_frequency,
+    load_data,
     parse_detector_settings,
     parse_filepath,
     parse_range,
@@ -648,7 +649,8 @@ def plot(
         # TODO: metadata detection
         metadata = {}
 
-        data = pd.read_csv(files[0], index_col=0)
+        # data = pd.read_csv(files[0], index_col=0)
+        data, metadata = load_data(files[0])
         # TODO: correct extension checking
         outpath, extension = parse_filepath(filepath=files[0], timestamp=None)
 
@@ -699,7 +701,7 @@ def plot(
                         )
 
             click.echo(f"Postprocessing - mode {postproc}")
-            postprocessing(data, postproc, chop_freq, det_freq.freq * 1000)
+            postprocessing(data, chop_freq, det_freq.freq * 1000)
             click.echo("\tPostprocessing finished")
 
             plotting(data=data, path=outpath, save=plot_save)
