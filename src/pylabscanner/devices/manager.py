@@ -287,6 +287,7 @@ class LiveView:
         manager: DeviceManager,
         logger: logging.Logger = None,
         plot_fft_limit: float = 0.04,
+        plot_signal: bool = False,
     ) -> None:
         """Initialize all threads necessary for concurrent detector control,
         plotting and reading from standard input (to stop the execution).
@@ -299,6 +300,7 @@ class LiveView:
         self.measurements = Queue()
         self.shutdown_event = threading.Event()
         self.plot_fft_limit = plot_fft_limit
+        self.plot_signal = plot_signal
         if logger is None:
             self._log = logging.getLogger(__name__)
         else:
@@ -380,14 +382,18 @@ class LiveView:
 
             # plot data
 
-            plt.subplot(211)
-            plt.plot(yx, y)
-            plt.ylabel("Amplitude [V]")
-            plt.xlabel("Time [s]")
-            plt.ylim(bottom=0, top=3.3)
+            if self.plot_signal:
+                plt.subplot(211)
+                plt.plot(yx, y)
+                plt.ylabel("Amplitude [V]")
+                plt.xlabel("Time [s]")
+                plt.ylim(bottom=0, top=3.3)
+
+                plt.subplot(212)
+            else:
+                plt.subplot()
 
             # plot fft
-            plt.subplot(212)
             plt.plot(fftx, fft * 1000)
 
             max_fft_value = fft.max()
