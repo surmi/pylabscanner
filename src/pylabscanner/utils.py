@@ -583,3 +583,14 @@ def saving(
                 writer = csv.DictWriter(f, fieldnames=field_names)
                 writer.writeheader()
                 writer.writerow(metadata)
+
+
+def calculate_statistics(data: pd.DataFrame):
+    val = data["FFT"]
+    statistics = {
+        "min": val.min(),
+        "max": val.max(),
+        "avg": val.mean(),
+        "median": val.median(),
+    }
+    return statistics
