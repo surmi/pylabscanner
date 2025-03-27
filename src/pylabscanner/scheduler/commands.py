@@ -277,11 +277,11 @@ class ActionPtByPt(Action):
 
     def get_ta(self):
         if self.ta is None:
-            measurement_acquisition_time = self.manager.ta_measurement
+            measurement_acquisition_time = 2 * self.manager.ta_measurement
             self.ta = measurement_acquisition_time
             previous_position = self.measuring_range[0]
             for destination in self.measuring_range[1:]:
-                self.ta += self.manager.ta_move_stage(
+                self.ta += 2 * self.manager.ta_move_stage(
                     destination=destination, previous_position=previous_position
                 )
                 self.ta += measurement_acquisition_time
