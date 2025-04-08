@@ -587,10 +587,40 @@ def saving(
 
 def calculate_statistics(data: pd.DataFrame):
     val = data["FFT"]
+    x = data["x"]
+    y = data["y"]
+    z = data["z"]
+    total_mass = val.sum()
     statistics = {
         "min": val.min(),
         "max": val.max(),
         "avg": val.mean(),
         "median": val.median(),
+        "1st_quartile": val.quantile(0.25),
+        "2nd_quartile": val.quantile(0.5),
+        "3rd_quartile": val.quantile(0.75),
+        "center_of_mass_x": (x * val).sum() / total_mass,
+        "center_of_mass_y": (y * val).sum() / total_mass,
+        "center_of_mass_z": (z * val).sum() / total_mass,
     }
+    print(statistics)
     return statistics
+
+
+def save_statistics(
+    statistics: dict,
+    path: Path,
+    extension: str,
+    label: str = None,
+):
+    if label is not None:
+        path = filepath_add_label(path=path, label=label)
+    path.parent.mkdir(exist_ok=True)
+    statistics_path = filepath_add_label(path=path, label="stats")
+    if extension != "csv":
+        statistics_path.with_suffix(statistics_path.suffix + ".csv")
+    with statistics_path.open("w+") as f:
+        field_names = list(statistics.keys())
+        writer = csv.DictWriter(f, fieldnames=field_names)
+        writer.writeheader()
+        writer.writerow(statistics)

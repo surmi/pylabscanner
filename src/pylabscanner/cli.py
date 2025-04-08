@@ -27,6 +27,8 @@ from .utils import (
     saving,
     setup_manager,
     filepath_add_label,
+    calculate_statistics,
+    save_statistics,
 )
 
 
@@ -653,6 +655,10 @@ def plot(
         data, metadata = load_data(files[0])
         # TODO: correct extension checking
         outpath, extension = parse_filepath(filepath=files[0], timestamp=None)
+        statistics = calculate_statistics(data=data)
+        statistics_path = files[0]
+        out_path, extension = parse_filepath(filepath=statistics_path)
+        save_statistics(statistics=statistics, path=out_path, extension=extension)
 
         if postproc is None:
             # plot all processed data
